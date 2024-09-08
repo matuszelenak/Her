@@ -1,12 +1,11 @@
 import {useEffect, useState} from "react";
 
-export const useAudioPlayer = () => {
-    const audioContext = new AudioContext();
+export const useAudioPlayer = (audioContext: AudioContext) => {
     const [audioNode, setAudioNode] = useState<AudioWorkletNode | null>(null)
 
     useEffect(() => {
         const init = async () => {
-            await audioContext.audioWorklet.addModule('audioProcessor.js');
+            await audioContext.audioWorklet.addModule('audioPlayer.js');
             const audioNode = new AudioWorkletNode(audioContext, 'audio-processor');
             audioNode.connect(audioContext.destination);
 
@@ -16,5 +15,5 @@ export const useAudioPlayer = () => {
         init()
     }, []);
 
-    return { audioNode, audioContext }
+    return { audioNode }
 }

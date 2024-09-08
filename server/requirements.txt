@@ -1,0 +1,7 @@
+ollama
+websockets
+scipy
+fastapi
+uvicorn
+httpx
+requests

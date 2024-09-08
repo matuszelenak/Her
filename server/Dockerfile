@@ -1,0 +1,13 @@
+FROM 3.12-alpine3.20:latest
+
+RUN apk update
+
+WORKDIR /app
+
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+
+COPY server.py server.py
+COPY utils utils
+
+ENTRYPOINT ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]

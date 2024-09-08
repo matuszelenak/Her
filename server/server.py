@@ -1,25 +1,28 @@
 import asyncio
 import datetime
 import json
+import os
 from dataclasses import dataclass
 from typing import Optional, Tuple
 from urllib.parse import urlencode
 
 import httpx
 import numpy as np
+import scipy
+import starlette
 import websockets
 from fastapi import FastAPI, WebSocket
 from ollama import AsyncClient
+
+from utils.llm_response import get_sentences
+from utils.tools import get_ip_address_def, get_current_moon_phase_def, tool_call_regex, get_ip_address
 
 XTTS_OUTPUT_SAMPLING_RATE = 24000
 
 app = FastAPI()
 
-ASSISTANT_SYSTEM = """
-You are Scarlett, my personal AI assistant.
-You are kind, understanding and compassionate.
-Do not use emojis or other unpronounceable characters in your output as I intend to synthesize it to speech.
-"""
+model = 'mistral-nemo:12b-instruct-2407-q8_0'
+# model = 'llama3.1:8b-instruct-q8_0'
 
 CLEANER_SYSTEM = """
 You are a large language model. Your task is to validate and sanitize the transcription of speech to text before it reaches another AI assistant. 
@@ -31,16 +34,27 @@ The very first message is likely to just be a greeting, so accept any.
 Remember, I am not talking to you, you are simply validating what I send you.
 """
 
+tools = {
+    'get_ip_address': get_ip_address
+}
+
+WHISPER_API_URL = os.environ.get('WHISPER_API_URL')
+XTTS2_API_URL = os.environ.get('XTTS2_API_URL')
+OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL')
+
 
 @dataclass
 class Session:
     client_socket: WebSocket
     stt_socket: Optional[websockets.WebSocketClientProtocol]
     stt_task: Optional[asyncio.Task]
+    tts_task: Optional[asyncio.Task]
     llm_submit_task: Optional[asyncio.Task]
     speech_send_task: Optional[asyncio.Task]
     prompt_segments_queue: Optional[asyncio.Queue]
     response_tokens_queue: Optional[asyncio.Queue]
+    response_speech_queue: Optional[asyncio.Queue]
+
     prompt: Optional[Tuple[str, datetime.datetime]]
 
     def terminate(self):
@@ -50,6 +64,8 @@ class Session:
             self.llm_submit_task.cancel()
         if self.speech_send_task:
             self.speech_send_task.cancel()
+        if self.tts_task:
+            self.tts_task.cancel()
 
 
 @app.websocket("/ws/{client_id}")
@@ -58,14 +74,14 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
     print(f"New client connected: {client_id}")
 
-    session = Session(websocket, None, None, None, None, asyncio.Queue(), asyncio.Queue(), None)
+    session = Session(websocket, None, None, None, None, None, asyncio.Queue(), asyncio.Queue(), asyncio.Queue(), None)
 
     try:
-        async with websockets.connect('ws://10.0.0.2:9090') as stt_socket:
-            await session.response_tokens_queue.put('Hello there!')
+        async with websockets.connect(WHISPER_API_URL) as stt_socket:
             session.stt_socket = stt_socket
             session.stt_task = asyncio.create_task(stt_receiver(session))
             session.llm_submit_task = asyncio.create_task(llm_submitter(session))
+            session.tts_task = asyncio.create_task(tts_receiver(session))
             session.speech_send_task = asyncio.create_task(response_audio_sender(session))
 
             await stt_socket.send(json.dumps(
@@ -73,7 +89,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     "uid": client_id,
                     "language": "en",
                     "task": "transcribe",
-                    "model": "large-v3",
+                    "model": "medium.en",
                     "use_vad": True,
                     "vad_options": {
                         "threshold": 0.5,
@@ -87,10 +103,18 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             ))
 
             while True:
-                data = await websocket.receive()
-                await stt_socket.send(data['bytes'])
+                data = await websocket.receive_bytes()
+                samples = np.frombuffer(data, dtype=np.float32)
+                samples = scipy.signal.resample(samples, round(samples.shape[0] * (16000 / 44100)))
+
+                await stt_socket.send(samples.tobytes())
+
+    except starlette.websockets.WebSocketDisconnect:
+        pass
 
     finally:
+        print('Terminating')
+
         session.terminate()
 
 
@@ -101,11 +125,12 @@ async def stt_receiver(session: Session):
         try:
             segments = resp['segments']
             last_segment = sorted(segments, key=lambda segment: float(segment['start']))[-1]
-
-            if last_segment['start'] != previous_start:
+            if last_segment['start'] != previous_start or last_segment['text'] != previous_text:
                 print(last_segment)
                 session.prompt = (last_segment['text'], datetime.datetime.now())
+
             previous_start = last_segment['start']
+            previous_text = last_segment['text']
         except KeyError:
             pass
 
@@ -115,7 +140,7 @@ async def llm_submitter(session: Session):
     while True:
         if session.prompt:
             prompt, prompt_time = session.prompt
-            if prompt_time < datetime.datetime.now() - datetime.timedelta(milliseconds=600):
+            if prompt_time < datetime.datetime.now() - datetime.timedelta(milliseconds=1000):
                 session.prompt = None
 
                 wtf = '\n'.join(
@@ -123,8 +148,8 @@ async def llm_submitter(session: Session):
                      for message in message_history[-5:]]
                 )
                 wtf = f'{wtf}\nUSER: {prompt}'
-                response = await AsyncClient('http://10.0.0.2:11434').chat(
-                    model='mistral-nemo:12b-instruct-2407-q8_0',
+                llm_response = await AsyncClient(OLLAMA_API_URL).chat(
+                    model=model,
                     messages=[
                         {
                             'role': 'system',
@@ -136,8 +161,9 @@ async def llm_submitter(session: Session):
                         }
                     ]
                 )
-                passed_validation = response['message']['content'].strip()
+                passed_validation = llm_response['message']['content'].strip()
                 if passed_validation == 'FALSE':
+                    print('Did not pass validation')
                     continue
 
                 print('Prompt detected and validated')
@@ -147,35 +173,51 @@ async def llm_submitter(session: Session):
                     'content': prompt
                 })
 
-                response = []
-                sentence = []
-                async for part in await AsyncClient('http://10.0.0.2:11434').chat(
-                        model='mistral-nemo:12b-instruct-2407-q8_0',
-                        messages=[{'role': 'system', 'content': ASSISTANT_SYSTEM}] + message_history,
-                        stream=True
-                ):
-                    msg = part['message']['content']
-                    sentence.append(msg)
-                    response.append(msg)
-                    print(msg, end='', flush=True)
-                    if msg in ('.', '!', '?') and len(sentence) > 0:
-                        sentence = ''.join(sentence)
-                        await session.response_tokens_queue.put(sentence)
-                        sentence = []
+                client = AsyncClient(OLLAMA_API_URL)
 
-                if sentence:
-                    sentence = ''.join(sentence)
-                    await session.response_tokens_queue.put(sentence)
+                while True:
+                    tool_answers = []
+                    async for sentence_type, content in get_sentences(
+                            client.chat(
+                                model=model,
+                                messages=[
+                                             # {'role': 'system', 'content': ASSISTANT_SYSTEM}
+                                         ] + message_history,
+                                stream=True,
+                                # tools=[
+                                #     get_ip_address_def
+                                # ],
+                            )
+                    ):
+                        if sentence_type == 'interactive':
+                            await session.response_tokens_queue.put(content)
+                        else:
+                            fn = tools.get(content['name'])
+                            if fn:
+                                parameters = content['parameters']
+                                tool_answers.append(fn(**parameters))
+
+                    print(tool_answers)
+                    if len(tool_answers) > 0:
+                        for answer in tool_answers:
+                            message_history.append({
+                                'role': 'tool',
+                                'content': str(answer)
+                            })
+                    else:
+                        break
+
+                print('Done')
 
                 message_history.append({
                     'role': 'assistant',
-                    'content': ''.join(response)
+                    'content': ''.join(llm_response)
                 })
 
         await asyncio.sleep(0.1)
 
 
-async def response_audio_sender(session: Session):
+async def tts_receiver(session: Session):
     async with httpx.AsyncClient() as client:
         while True:
             sentence = await session.response_tokens_queue.get()
@@ -187,16 +229,21 @@ async def response_audio_sender(session: Session):
                 'speaker_wav': 'aloy.wav',
                 'language': 'en'
             }
-
-            sample_count = 0
-            async with client.stream('GET', f'http://10.0.0.2:8020/tts_stream?{urlencode(params)}') as resp:
+            async with client.stream('GET', f'{XTTS2_API_URL}/tts_stream?{urlencode(params)}') as resp:
                 async for chunk in resp.aiter_bytes(XTTS_OUTPUT_SAMPLING_RATE):
-                    samples = np.frombuffer(chunk, dtype=np.int16).tolist()
-                    sample_count += len(samples)
-                    await session.client_socket.send_json({
-                        'type': 'speech',
-                        'samples': np.frombuffer(chunk, dtype=np.int16).tolist()
-                    })
-                    if sample_count > 2 * XTTS_OUTPUT_SAMPLING_RATE:
-                        await asyncio.sleep(sample_count / XTTS_OUTPUT_SAMPLING_RATE * 0.9)
-                        sample_count = 0
+                    samples = np.frombuffer(chunk, dtype=np.int16)
+                    samples = samples / np.iinfo(np.int16).max
+                    samples = scipy.signal.resample(samples,
+                                                    round(samples.shape[0] * (48000 / XTTS_OUTPUT_SAMPLING_RATE)))
+
+                    await session.response_speech_queue.put(samples)
+
+
+async def response_audio_sender(session: Session):
+    while True:
+        samples = await session.response_speech_queue.get()
+        await session.client_socket.send_json({
+            'type': 'speech',
+            'samples': samples.tolist()
+        })
+        await asyncio.sleep(samples.shape[0] / 48000 * 0.90)

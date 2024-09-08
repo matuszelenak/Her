@@ -1,4 +1,4 @@
-class AudioProcessor extends AudioWorkletProcessor {
+class AudioPlayer extends AudioWorkletProcessor {
     constructor() {
         super();
         this.buffer = new Float32Array();
@@ -23,4 +23,4 @@ class AudioProcessor extends AudioWorkletProcessor {
     }
 }
 
-registerProcessor('audio-processor', AudioProcessor);
+registerProcessor('audio-processor', AudioPlayer);
