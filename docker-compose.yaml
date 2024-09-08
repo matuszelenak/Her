@@ -1,4 +1,11 @@
 services:
+  nginx:
+    container_name: ai-girlfriend-nginx
+    image: nginx:latest
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
   server:
     container_name: ai-girlfriend-server
     env_file:

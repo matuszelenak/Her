@@ -12,7 +12,7 @@ function App() {
     const {
         sendMessage,
     } = useWebSocket(
-        `ws://localhost:8000/ws/41ae3e52-dd7d-4fd6-92a1-88638e8ceaa1`,
+        `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws/totallyrandom`,
         {
             onMessage: (event: WebSocketEventMap['message']) => {
                 const message = JSON.parse(event.data)
