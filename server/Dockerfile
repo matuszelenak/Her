@@ -1,4 +1,4 @@
-FROM 3.12-alpine3.20:latest
+FROM python:3.12-alpine3.20
 
 RUN apk update
 
