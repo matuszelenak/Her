@@ -6,6 +6,10 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf
     ports:
       - "80:80"
+    depends_on:
+      - server
+      - ui
+
   server:
     container_name: ai-girlfriend-server
     env_file:

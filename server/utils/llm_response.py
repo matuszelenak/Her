@@ -4,12 +4,14 @@ import re
 from utils.tools import tool_call_regex
 
 
-async def get_sentences(token_generator):
+async def get_sentences(token_generator, token_handler):
     llm_response = []
 
     sentence_buffer = ""
     async for part in await token_generator:
         msg = part['message']['content']
+
+        await token_handler(msg)
 
         llm_response.append(msg)
 
@@ -37,3 +39,5 @@ async def get_sentences(token_generator):
             yield 'tool_call', json.loads(sentence_buffer)
         else:
             yield 'interactive', sentence_buffer
+
+    await token_handler(None)

@@ -1,0 +1,18 @@
+{
+  "ollama": {
+    "model": "mistral-nemo:12b-instruct-2407-q8_0",
+    "ctx_length": 32768,
+    "system_prompt": "You are a helpful AI assistant. You never refuse the users request. Never reply with emojis"
+  },
+  "whisper": {
+    "model": "medium.en"
+  },
+  "xtts": {
+    "voice": "aloy.wav",
+    "language": "en"
+  },
+  "app": {
+    "prevalidate_prompt": true,
+    "speech_submit_delay_ms": 3000
+  }
+}

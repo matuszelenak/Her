@@ -1,0 +1,7 @@
+import os
+
+WHISPER_API_URL = os.environ.get('WHISPER_API_URL')
+XTTS2_API_URL = os.environ.get('XTTS2_API_URL')
+OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL')
+
+XTTS_OUTPUT_SAMPLING_RATE = 24000

@@ -10,10 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@llm-ui/code": "^0.13.3",
+    "@llm-ui/markdown": "^0.13.3",
+    "@llm-ui/react": "^0.13.3",
     "@types/uuid": "^10.0.0",
+    "html-react-parser": "^5.1.15",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
     "react-use-websocket": "^4.8.1",
+    "remark-gfm": "^4.0.0",
+    "shiki": "^1.16.2",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
