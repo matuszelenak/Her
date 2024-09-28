@@ -14,7 +14,6 @@
     "@emotion/styled": "^11.13.0",
     "@mui/material": "^6.1.1",
     "@types/uuid": "^10.0.0",
-    "html-react-parser": "^5.1.15",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^9.0.1",
