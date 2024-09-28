@@ -7,7 +7,7 @@ export const useAudioRecorder = (callback: (a: Float32Array) => any) => {
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(async function (stream) {
                     const audioContext = new AudioContext()
-                    await audioContext.audioWorklet.addModule('audioRecorder.js');
+                    await audioContext.audioWorklet.addModule('/audioRecorder.js');
                     let src = audioContext.createMediaStreamSource(stream);
 
                     const processor = new AudioWorkletNode(audioContext, 'record-processor');
