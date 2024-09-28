@@ -19,7 +19,6 @@ from utils.constants import OLLAMA_API_URL, XTTS2_API_URL, XTTS_OUTPUT_SAMPLING_
 from utils.llm_response import get_sentences
 from utils.session import Session
 from utils.tools import get_ip_address
-from utils.validation import is_prompt_valid
 
 app = FastAPI()
 
@@ -44,39 +43,82 @@ async def set_config(payload: SessionConfig, client_id: str):
     return sessions[client_id].config
 
 
-@app.websocket("/ws/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: str):
+@app.websocket("/ws/{client_id}/output")
+async def websocket_output_endpoint(websocket: WebSocket, client_id: str):
+    await websocket.accept()
+
+    try:
+        while True:
+            session = sessions.get(client_id, None)
+            if session is not None:
+                break
+            else:
+                await asyncio.sleep(0.5)
+
+        buffer = []
+        while True:
+            samples = await session.response_speech_queue.get()
+            for sample in samples:
+                if len(buffer) < 4096:
+                    buffer.append(sample)
+                else:
+                    while True:
+                        await websocket.send_json({
+                            'type': 'speech',
+                            'samples': buffer
+                        })
+                        resp = await websocket.receive_json()
+                        if resp == {}:
+                            buffer = []
+                            break
+                        else:
+                            await asyncio.sleep(0.1)
+
+
+    except starlette.websockets.WebSocketDisconnect:
+        pass
+
+
+@app.websocket("/ws/{client_id}/input")
+async def websocket_input_endpoint(websocket: WebSocket, client_id: str):
     await websocket.accept()
 
     print(f"New client connected: {client_id}")
 
     session = Session(
+        client_id,
         get_default_config(),
         websocket,
         None
     )
     sessions[client_id] = session
 
-    #     session.prompt = (
-    #         """
-    #         write me a story about a giant python sneaking into a house with with two slightly drunk women inside.
-    # After a short argument they decide to feed themselves to the python. While the first woman is swallowed, the second one should be aroused and pleasing herself at the sight. Describe the swallowing process in great detail,  focusing on how the snake progresses over the body parts of the two women. Both women should be swallowed starting from their head. Describe how every part of their bodies (their head, shoulders, breasts, belly, wide hips and legs) is gradually swallowed. After both women arrive at the pythons stomach, describe how they continue pleasing one another until they finally become unconscious. At the end, describe how the two women are digested over the following days and how little remains of them, how the snake disposes of the leftover waste. Their nails and hair being the only things undigested
-    #         """,
-    #         datetime.datetime.now()
-    #     )
+    try:
+        session.stt_task = asyncio.create_task(stt_sender(session))
+        session.llm_submit_task = asyncio.create_task(llm_submitter(session))
+        session.tts_task = asyncio.create_task(tts_receiver(session))
 
+        while True:
+            await asyncio.sleep(1)
+
+    except starlette.websockets.WebSocketDisconnect:
+        pass
+
+    finally:
+        print(f'Terminating client {client_id}')
+
+        session.terminate()
+        del sessions[client_id]
+
+
+async def stt_sender(session: Session):
+    receiver_task = None
     try:
         async for stt_socket in websockets.connect(WHISPER_API_URL):
             try:
-                session.stt_socket = stt_socket
-                session.stt_task = asyncio.create_task(stt_receiver(session))
-                # session.llm_submit_task = asyncio.create_task(llm_submitter(session))
-                # session.tts_task = asyncio.create_task(tts_receiver(session))
-                # session.speech_send_task = asyncio.create_task(response_audio_sender(session))
-
                 await stt_socket.send(json.dumps(
                     {
-                        "uid": client_id,
+                        "uid": session.id,
                         "language": "en",
                         "task": "transcribe",
                         "model": session.config.whisper.model,
@@ -92,8 +134,10 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     }
                 ))
 
+                receiver_task = asyncio.create_task(stt_receiver(session, stt_socket))
+
                 while True:
-                    data = await websocket.receive_bytes()
+                    data = await session.client_socket.receive_bytes()
                     samples = np.frombuffer(data, dtype=np.float32)
                     samples = scipy.signal.resample(samples, round(samples.shape[0] * (16000 / 44100)))
 
@@ -103,17 +147,16 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 logging.warning('Connection to Whisper closed')
                 continue
 
-    except starlette.websockets.WebSocketDisconnect:
-        pass
-
+    except asyncio.CancelledError:
+        logger.warning('STT Task cancelled')
+    except Exception as e:
+        logger.warning('STT task exception')
+        logger.warning(e)
     finally:
-        print(f'Terminating client {client_id}')
+        if receiver_task is not None:
+            receiver_task.cancel()
 
-        session.terminate()
-        del sessions[client_id]
-
-
-async def stt_receiver(session: Session):
+async def stt_receiver(session: Session, socket):
     end_ts_to_segment_tree = SortedDict()
     memo = {}
 
@@ -159,13 +202,13 @@ async def stt_receiver(session: Session):
                     logger.error(e)
 
         if next_start is None:
-            logger.error(f'DIDNT FIND SHIT for {curr_start}')
-            logger.warning(str(memo))
+            # logger.error(f'DIDNT FIND SHIT for {curr_start}')
+            # logger.warning(str(memo))
             return ""
 
         elif next_start == curr_start:
-            logger.error(f'WHAT??? {curr_start} {next_start}')
-            logger.error(str(end_ts_to_segment_tree))
+            # logger.error(f'WHAT??? {curr_start} {next_start}')
+            # logger.error(str(end_ts_to_segment_tree))
             return ""
 
         prefix = calculate_prefix(next_start)
@@ -177,15 +220,7 @@ async def stt_receiver(session: Session):
 
     last_cutoff = - 1
 
-    async for message in session.stt_socket:
-        if session.prompt is not None and isinstance(session.prompt, float):
-            last_cutoff = session.prompt
-            session.prompt = None
-
-            # Prompt was consumed, reset
-            end_ts_to_segment_tree = SortedDict()
-            memo = {}
-
+    async for message in socket:
         resp = json.loads(message)
         logger.warning(resp)
         try:
@@ -198,11 +233,15 @@ async def stt_receiver(session: Session):
             end_ts = float(last_segment['end'])
 
             if last_segment['start'] != previous_start or last_segment['text'] != previous_text:
-                # f.write(json.dumps(last_segment))
-                # f.write('\n')
-                logger.warning(last_segment)
                 end_ts_to_segment_tree[end_ts] = (start_ts, last_segment['text'])
-                session.prompt = (calculate_prefix(start_ts) + last_segment['text'], datetime.datetime.now(), end_ts)
+                complete = calculate_prefix(start_ts) + last_segment['text']
+                logger.warning(complete)
+                session.prompt = (complete, datetime.datetime.now(), end_ts)
+
+                await session.client_socket.send_json({
+                    'type': 'stt_output',
+                    'text': complete
+                })
 
             previous_start = last_segment['start']
             previous_text = last_segment['text']
@@ -218,17 +257,13 @@ async def llm_submitter(session: Session):
             if prompt_time < datetime.datetime.now() - datetime.timedelta(
                     milliseconds=session.config.app.speech_submit_delay_ms
             ):
-                session.prompt = cutoff
+                session.prompt = None
+                session.stt_task.cancel()
+                session.stt_task = asyncio.create_task(stt_sender(session))
+
                 #
                 # if session.config.app.prevalidate_prompt and not await is_prompt_valid(session, prompt, message_history):
                 #     continue
-
-                await session.client_socket.send_json({
-                    'type': 'stt_output',
-                    'text': prompt
-                })
-
-                print('Prompt detected and validated')
 
                 message_history.append({
                     'role': 'user',
@@ -268,7 +303,6 @@ async def llm_submitter(session: Session):
                                 parameters = content['parameters']
                                 tool_answers.append(fn(**parameters))
 
-                    print(tool_answers)
                     if len(tool_answers) > 0:
                         for answer in tool_answers:
                             message_history.append({
@@ -281,8 +315,6 @@ async def llm_submitter(session: Session):
                             'content': ''.join(printable_response)
                         })
                         break
-
-                print('Done')
 
         await asyncio.sleep(0.1)
 
@@ -302,23 +334,16 @@ async def tts_receiver(session: Session):
         }
         logger.warning(f'Submitting for TTS {sentence}')
         async with httpx.AsyncClient() as client:
-            async with client.stream('GET',
-                                     f'http://192.168.1.169:7851/api/tts-generate-streaming?{urlencode(params)}') as resp:
+            async with client.stream(
+                    'GET',
+                    f'{XTTS2_API_URL}/api/tts-generate-streaming?{urlencode(params)}'
+            ) as resp:
                 async for chunk in resp.aiter_bytes(XTTS_OUTPUT_SAMPLING_RATE):
                     samples = np.frombuffer(chunk, dtype=np.int16)
                     samples = samples / np.iinfo(np.int16).max
-                    samples = scipy.signal.resample(samples,
-                                                    round(samples.shape[0] * (48000 / XTTS_OUTPUT_SAMPLING_RATE)))
+                    samples = scipy.signal.resample(
+                        samples,
+                        round(samples.shape[0] * (48000 / XTTS_OUTPUT_SAMPLING_RATE))
+                    )
 
-                    logger.warning(f'Received speech {samples.shape[0]} samples')
-                    await session.response_speech_queue.put(samples)
-
-
-async def response_audio_sender(session: Session):
-    while True:
-        samples = await session.response_speech_queue.get()
-        await session.client_socket.send_json({
-            'type': 'speech',
-            'samples': samples.tolist()
-        })
-        await asyncio.sleep(samples.shape[0] / 48000 * 0.9)
+                    await session.response_speech_queue.put(samples.tolist())
