@@ -6,3 +6,5 @@ uvicorn
 httpx
 requests
 sortedcontainers
+markdown
+beautifulsoup4

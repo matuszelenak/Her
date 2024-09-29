@@ -6,7 +6,7 @@ from ollama import AsyncClient
 
 from components.stt import stt_sender
 from utils.constants import OLLAMA_API_URL
-from utils.llm_response import get_sentences
+from utils.llm_response import get_sentences, strip_markdown
 from utils.session import Session
 from utils.tools import get_ip_address
 
@@ -64,8 +64,10 @@ async def llm_submitter(session: Session):
                             token_handler=send_token
                     ):
                         if sentence_type == 'interactive':
-                            logger.warning(f'Adding to TTS queue {content}')
-                            await session.response_tokens_queue.put(content)
+                            cleaned = await strip_markdown(content)
+
+                            logger.warning(f'Adding to TTS queue {cleaned}')
+                            await session.response_tokens_queue.put(cleaned)
                             printable_response += content
                         else:
                             fn = tools.get(content['name'])
