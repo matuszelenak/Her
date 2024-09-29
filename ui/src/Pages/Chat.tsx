@@ -4,6 +4,7 @@ import {useAudioRecorder} from "../utils/audioRecorder.ts";
 import Grid from "@mui/material/Grid2";
 import {Paper, Stack, Typography} from "@mui/material";
 import {useState} from "react";
+import Markdown from "react-markdown";
 
 
 type Message = {
@@ -12,7 +13,7 @@ type Message = {
 }
 
 
-export const Chat = ({chatId}: {chatId: string}) => {
+export const Chat = ({chatId}: { chatId: string }) => {
     const audioContext = new AudioContext();
 
     const [messages, setMessages] = useState<Message[]>([])
@@ -88,36 +89,43 @@ export const Chat = ({chatId}: {chatId: string}) => {
 
                 </Grid>
                 <Grid size={6}>
-                    <Stack direction="column" spacing={2}  sx={{maxHeight: '100%', overflow: "auto", padding: 2}}>
-                        { messages.map((message: Message) => (
-                            <Stack direction="row" justifyContent={message.role === 'agent' ? 'flex-start' : 'flex-end'}>
-                                <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}} >
+                    <Stack direction="column" spacing={2} sx={{maxHeight: '100%', overflow: "auto", padding: 2}}>
+                        {messages.map((message: Message) => (
+                            <Stack direction="row"
+                                   justifyContent={message.role === 'agent' ? 'flex-start' : 'flex-end'}>
+                                <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                     <Typography variant="body1">
-                                        {message.message}
+                                        <Markdown>
+                                            {message.message}
+                                        </Markdown>
                                     </Typography>
                                 </Paper>
                             </Stack>
                         ))}
-                        { userMessage !== "" && (
+                        {userMessage !== "" && (
                             <Stack direction="row" justifyContent={'flex-end'}>
                                 <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                     <Typography variant="body1">
-                                        {userMessage}
+                                        <Markdown>
+                                            {userMessage}
+                                        </Markdown>
                                     </Typography>
 
                                 </Paper>
                             </Stack>
-                        ) }
-                        { agentMessage !== "" && (
+                        )}
+                        {agentMessage !== "" && (
                             <Stack direction="row" justifyContent={'flex-start'}>
                                 <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                     <Typography variant="body1">
-                                        {agentMessage}
+                                        <Markdown>
+                                            {agentMessage}
+                                        </Markdown>
                                     </Typography>
 
                                 </Paper>
                             </Stack>
-                        ) }
+                        )}
                     </Stack>
                 </Grid>
                 <Grid size={3}>
