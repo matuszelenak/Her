@@ -5,6 +5,7 @@ import Grid from "@mui/material/Grid2";
 import {Paper, Stack, Typography} from "@mui/material";
 import {useState} from "react";
 import Markdown from "react-markdown";
+import ScrollableFeed from "react-scrollable-feed";
 
 
 type Message = {
@@ -84,15 +85,14 @@ export const Chat = ({chatId}: { chatId: string }) => {
 
     return (
         <>
-            <Grid container spacing={2} sx={{height: '100vh'}}>
+            <Grid container spacing={2} sx={{height: '100vh', margin: 0}}>
                 <Grid size={3}>
 
                 </Grid>
-                <Grid size={6}>
-                    <Stack direction="column" spacing={2} sx={{maxHeight: '100%', overflow: "auto", padding: 2}}>
+                <Grid size={6} sx={{maxHeight: '100vh'}}>
+                    <ScrollableFeed>
                         {messages.map((message: Message) => (
-                            <Stack direction="row"
-                                   justifyContent={message.role === 'agent' ? 'flex-start' : 'flex-end'}>
+                            <Stack direction="row" justifyContent={message.role === 'agent' ? 'flex-start' : 'flex-end'} sx={{margin: 2}}>
                                 <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                     <Typography variant="body1">
                                         <Markdown>
@@ -103,7 +103,7 @@ export const Chat = ({chatId}: { chatId: string }) => {
                             </Stack>
                         ))}
                         {userMessage !== "" && (
-                            <Stack direction="row" justifyContent={'flex-end'}>
+                            <Stack direction="row" justifyContent={'flex-end'} sx={{margin: 2}}>
                                 <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                     <Typography variant="body1">
                                         <Markdown>
@@ -115,7 +115,7 @@ export const Chat = ({chatId}: { chatId: string }) => {
                             </Stack>
                         )}
                         {agentMessage !== "" && (
-                            <Stack direction="row" justifyContent={'flex-start'}>
+                            <Stack direction="row" justifyContent={'flex-start'} sx={{margin: 2}}>
                                 <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                     <Typography variant="body1">
                                         <Markdown>
@@ -126,7 +126,7 @@ export const Chat = ({chatId}: { chatId: string }) => {
                                 </Paper>
                             </Stack>
                         )}
-                    </Stack>
+                    </ScrollableFeed>
                 </Grid>
                 <Grid size={3}>
 

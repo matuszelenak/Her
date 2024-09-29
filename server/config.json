@@ -13,6 +13,6 @@
   },
   "app": {
     "prevalidate_prompt": true,
-    "speech_submit_delay_ms": 6000
+    "speech_submit_delay_ms": 2000
   }
 }
