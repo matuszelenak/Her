@@ -6,6 +6,8 @@ import {Paper, Stack, Typography} from "@mui/material";
 import {useState} from "react";
 import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
+import {useMicVAD} from "@ricky0123/vad-react"
+import {arrayBufferToBase64} from "../utils/encoding.ts";
 
 
 type Message = {
@@ -47,7 +49,7 @@ export const Chat = ({chatId}: { chatId: string }) => {
     );
 
     const {
-        sendMessage,
+        sendJsonMessage: recorderSendJson,
     } = useWebSocket(
         `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws/${chatId}/input`,
         {
@@ -79,12 +81,33 @@ export const Chat = ({chatId}: { chatId: string }) => {
         }
     );
 
+    useMicVAD({
+        startOnLoad: true,
+        onSpeechStart: () => {
+            recorderSendJson({
+                'event': 'speech_start'
+            })
+        },
+        onSpeechEnd: () => {
+            recorderSendJson({
+                'event': 'speech_end'
+            })
+        },
+        ortConfig: (ort) => {
+            ort.env.wasm.wasmPaths = "/";
+        }
+    })
+
     useAudioRecorder((buffer: ArrayBuffer) => {
-        sendMessage(buffer)
+        recorderSendJson({
+            'event': 'samples',
+            'data': arrayBufferToBase64(buffer)
+        })
     })
 
     return (
         <>
+
             <Grid container spacing={2} sx={{height: '100vh', margin: 0}}>
                 <Grid size={3}>
 
@@ -92,7 +115,8 @@ export const Chat = ({chatId}: { chatId: string }) => {
                 <Grid size={6} sx={{maxHeight: '100vh'}}>
                     <ScrollableFeed>
                         {messages.map((message: Message) => (
-                            <Stack direction="row" justifyContent={message.role === 'agent' ? 'flex-start' : 'flex-end'} sx={{margin: 2}}>
+                            <Stack direction="row" justifyContent={message.role === 'agent' ? 'flex-start' : 'flex-end'}
+                                   sx={{margin: 2}}>
                                 <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                     <Typography variant="body1">
                                         <Markdown>

@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import datetime
 import json
 import logging
@@ -40,11 +41,23 @@ async def stt_sender(session: Session):
                 receiver_task = asyncio.create_task(stt_receiver(session, stt_socket))
 
                 while True:
-                    data = await session.client_socket.receive_bytes()
-                    samples = np.frombuffer(data, dtype=np.float32)
-                    samples = scipy.signal.resample(samples, round(samples.shape[0] * (16000 / 44100)))
+                    data = await session.client_socket.receive_json()
+                    if data['event'] == 'samples':
+                        samples = base64.b64decode(data['data'])
+                        samples = np.frombuffer(samples, dtype=np.float32)
+                        samples = scipy.signal.resample(samples, round(samples.shape[0] * (16000 / 44100)))
 
-                    await stt_socket.send(samples.tobytes())
+                        # logger.warning(f'Received {samples.shape[0]} samples')
+
+                        await stt_socket.send(samples.tobytes())
+
+                    elif data['event'] == 'speech_end':
+                        logger.warning('Speak end')
+                        session.user_speaking_status = (False, datetime.datetime.now())
+
+                    elif data['event'] == 'speech_start':
+                        logger.warning('Speak start')
+                        session.user_speaking_status = (True, datetime.datetime.now())
 
             except websockets.ConnectionClosed:
                 logging.warning('Connection to Whisper closed')
@@ -126,7 +139,7 @@ async def stt_receiver(session: Session, socket):
 
     async for message in socket:
         resp = json.loads(message)
-        logger.warning(resp)
+        # logger.warning(resp)
         try:
             segments = [x for x in resp['segments'] if float(x['start']) > last_cutoff]
             if len(segments) == 0:
@@ -139,8 +152,8 @@ async def stt_receiver(session: Session, socket):
             if last_segment['start'] != previous_start or last_segment['text'] != previous_text:
                 end_ts_to_segment_tree[end_ts] = (start_ts, last_segment['text'])
                 complete = calculate_prefix(start_ts) + last_segment['text']
-                logger.warning(complete)
-                session.prompt = (complete, datetime.datetime.now(), end_ts)
+                # logger.warning(complete)
+                session.prompt = complete
 
                 await session.client_socket.send_json({
                     'type': 'stt_output',

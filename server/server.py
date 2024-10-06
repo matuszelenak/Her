@@ -14,6 +14,7 @@ from components.tts import tts_receiver
 from components.llm import llm_submitter
 from utils.configuration import SessionConfig, get_default_config
 from utils.constants import OLLAMA_API_URL, XTTS2_API_URL, WHISPER_API_URL
+from utils.queue import empty_queue
 from utils.session import Session
 
 app = FastAPI()
@@ -74,6 +75,17 @@ async def websocket_output_endpoint(websocket: WebSocket, client_id: str):
         buffer = []
         while True:
             samples = await session.response_speech_queue.get()
+
+            if session.user_speaking_status[0] == True:
+                logger.warning('User started speaking')
+                session.tts_task.cancel()
+
+                await empty_queue(session.response_speech_queue)
+                await empty_queue(session.response_tokens_queue)
+
+                session.tts_task = asyncio.create_task(tts_receiver(session))
+                continue
+
             for sample in samples:
                 if len(buffer) < 4096:
                     buffer.append(sample)
@@ -125,3 +137,10 @@ async def websocket_input_endpoint(websocket: WebSocket, client_id: str):
 
         session.terminate()
         del sessions[client_id]
+
+
+async def monitoring_task(session: Session):
+    while True:
+
+
+        await asyncio.sleep(0.1)

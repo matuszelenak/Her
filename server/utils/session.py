@@ -20,7 +20,8 @@ class Session:
     response_tokens_queue: Optional[asyncio.Queue] = asyncio.Queue()
     response_speech_queue: Optional[asyncio.Queue] = asyncio.Queue()
 
-    prompt: Optional[Tuple[str, datetime.datetime, float]] = None
+    user_speaking_status: Tuple[bool, datetime.datetime] = (False, None)
+    prompt: Optional[str] = None
 
     def terminate(self):
         if self.stt_task:

@@ -23,13 +23,15 @@ async def llm_submitter(session: Session):
     message_history = []
     while True:
         if session.prompt:
-            prompt, prompt_time, cutoff = session.prompt
-            if prompt_time < datetime.datetime.now() - datetime.timedelta(
+            prompt = session.prompt
+            if session.user_speaking_status[0] == False and session.user_speaking_status[1] < datetime.datetime.now() - datetime.timedelta(
                     milliseconds=session.config.app.speech_submit_delay_ms
             ):
                 session.prompt = None
                 session.stt_task.cancel()
                 session.stt_task = asyncio.create_task(stt_sender(session))
+
+                logger.warning('Accepted prompt')
 
                 #
                 # if session.config.app.prevalidate_prompt and not await is_prompt_valid(session, prompt, message_history):
@@ -63,6 +65,7 @@ async def llm_submitter(session: Session):
                             ),
                             token_handler=send_token
                     ):
+                        logger.warning(f'LLM Response: {content}')
                         if sentence_type == 'interactive':
                             cleaned = await strip_markdown(content)
 
