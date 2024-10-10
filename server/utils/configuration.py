@@ -11,6 +11,8 @@ class OllamaConfig(BaseModel):
     model: str
     ctx_length: int
     system_prompt: str
+    repeat_penalty: float
+    temperature: float
 
 
 class XTTSConfig(BaseModel):

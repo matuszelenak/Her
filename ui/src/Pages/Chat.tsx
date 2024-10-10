@@ -8,6 +8,7 @@ import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
 import {useMicVAD} from "@ricky0123/vad-react"
 import {arrayBufferToBase64} from "../utils/encoding.ts";
+import {ConfigForm} from "../Components/ConfigForm.tsx";
 
 
 type Message = {
@@ -65,14 +66,12 @@ export const Chat = ({chatId}: { chatId: string }) => {
                         setMessages((prevState: Message[]) => [...prevState, {role: 'agent', message: agentMessage}])
                         setAgentMessage("")
                     } else {
-                        console.log(message.token)
                         setAgentMessage((prevState) => `${prevState}${message.token.replaceAll('\n', '\r\n')}`)
                     }
 
                 }
 
                 if (message.type == 'stt_output') {
-                    console.log(message.text)
                     setUserMessage(message.text)
                 }
             },
@@ -153,7 +152,7 @@ export const Chat = ({chatId}: { chatId: string }) => {
                     </ScrollableFeed>
                 </Grid>
                 <Grid size={3}>
-
+                    <ConfigForm chatId={chatId}/>
                 </Grid>
             </Grid>
         </>

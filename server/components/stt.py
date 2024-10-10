@@ -26,15 +26,16 @@ async def stt_sender(session: Session):
                         "language": "en",
                         "task": "transcribe",
                         "model": session.config.whisper.model,
-                        "use_vad": True,
-                        "vad_options": {
-                            "threshold": 0.5,
-                            "min_speech_duration_ms": 400,
-                            "max_speech_duration_s": "Infinity",
-                            "min_silence_duration_ms": 1000,
-                            "window_size_samples": 1536,
-                            "speech_pad_ms": 300
-                        }
+                        "use_vad": False
+                        # "use_vad": True,
+                        # "vad_options": {
+                        #     "threshold": 0.5,
+                        #     "min_speech_duration_ms": 400,
+                        #     "max_speech_duration_s": "Infinity",
+                        #     "min_silence_duration_ms": 1000,
+                        #     "window_size_samples": 1536,
+                        #     "speech_pad_ms": 300
+                        # }
                     }
                 ))
 
@@ -49,7 +50,8 @@ async def stt_sender(session: Session):
 
                         # logger.warning(f'Received {samples.shape[0]} samples')
 
-                        await stt_socket.send(samples.tobytes())
+                        if session.user_speaking_status[0]:
+                            await stt_socket.send(samples.tobytes())
 
                     elif data['event'] == 'speech_end':
                         logger.warning('Speak end')

@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import subprocess
-from typing import Dict
 from urllib.parse import urlparse
 
 import requests
@@ -9,24 +8,22 @@ import starlette
 from fastapi import FastAPI, WebSocket
 from ollama import AsyncClient, Client
 
+from components.llm import llm_submitter
 from components.stt import stt_sender
 from components.tts import tts_receiver
-from components.llm import llm_submitter
-from utils.configuration import SessionConfig, get_default_config
+from utils.configuration import SessionConfig
 from utils.constants import OLLAMA_API_URL, XTTS2_API_URL, WHISPER_API_URL
 from utils.queue import empty_queue
-from utils.session import Session
+from utils.session import get_session, terminate_session
 
 app = FastAPI()
 
 logger = logging.getLogger(__name__)
 
-sessions: Dict[str, Session] = dict()
-
 
 @app.get('/models')
 async def get_models():
-    return await AsyncClient(OLLAMA_API_URL).list()
+    return (await AsyncClient(OLLAMA_API_URL).list())['models']
 
 
 @app.get('/status')
@@ -53,11 +50,18 @@ async def get_status():
 
     return statuses
 
-@app.post('/config')
-async def set_config(payload: SessionConfig, client_id: str):
-    sessions[client_id].config = payload
 
-    return sessions[client_id].config
+@app.get('/config/{client_id}')
+async def get_config(client_id: str):
+    return get_session(client_id).config
+
+@app.post('/config/{client_id}')
+async def set_config(payload: SessionConfig, client_id: str):
+    session = get_session(client_id)
+    print(payload)
+    session.config = payload
+
+    return session.config
 
 
 @app.websocket("/ws/{client_id}/output")
@@ -65,12 +69,7 @@ async def websocket_output_endpoint(websocket: WebSocket, client_id: str):
     await websocket.accept()
 
     try:
-        while True:
-            session = sessions.get(client_id, None)
-            if session is not None:
-                break
-            else:
-                await asyncio.sleep(0.5)
+        session = get_session(client_id)
 
         buffer = []
         while True:
@@ -113,13 +112,8 @@ async def websocket_input_endpoint(websocket: WebSocket, client_id: str):
 
     print(f"New client connected: {client_id}")
 
-    session = Session(
-        client_id,
-        get_default_config(),
-        websocket,
-        None
-    )
-    sessions[client_id] = session
+    session = get_session(client_id)
+    session.client_socket = websocket
 
     try:
         session.stt_task = asyncio.create_task(stt_sender(session))
@@ -134,13 +128,4 @@ async def websocket_input_endpoint(websocket: WebSocket, client_id: str):
 
     finally:
         print(f'Terminating client {client_id}')
-
-        session.terminate()
-        del sessions[client_id]
-
-
-async def monitoring_task(session: Session):
-    while True:
-
-
-        await asyncio.sleep(0.1)
+        terminate_session(client_id)

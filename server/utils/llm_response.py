@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 
 from bs4 import BeautifulSoup
@@ -7,12 +8,17 @@ from markdown import markdown
 from utils.tools import tool_call_regex
 
 
+logger = logging.getLogger(__name__)
+
+
 async def get_sentences(token_generator, token_handler):
     llm_response = []
 
     sentence_buffer = ""
     async for part in await token_generator:
         msg = part['message']['content']
+
+        logger.warning(f'LLM: {msg}')
 
         await token_handler(msg)
 

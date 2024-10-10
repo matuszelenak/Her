@@ -62,6 +62,11 @@ async def llm_submitter(session: Session):
                                 # tools=[
                                 #     get_ip_address_def
                                 # ],
+                                options=dict(
+                                    num_ctx=session.config.ollama.ctx_length,
+                                    repeat_penalty=session.config.ollama.repeat_penalty,
+                                    temperature=session.config.ollama.temperature,
+                                )
                             ),
                             token_handler=send_token
                     ):
