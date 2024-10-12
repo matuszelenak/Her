@@ -19,81 +19,88 @@ tools = {
 
 
 
-async def llm_submitter(session: Session):
-    message_history = []
-    while True:
-        if session.prompt:
-            prompt = session.prompt
-            if session.user_speaking_status[0] == False and session.user_speaking_status[1] < datetime.datetime.now() - datetime.timedelta(
-                    milliseconds=session.config.app.speech_submit_delay_ms
-            ):
-                session.prompt = None
-                session.stt_task.cancel()
-                session.stt_task = asyncio.create_task(stt_sender(session))
+async def llm_submitter(session: Session, received_speech_queue: asyncio.Queue):
+    try:
+        message_history = []
+        while True:
+            if session.prompt:
+                prompt = session.prompt
+                if session.user_speaking_status[0] == False and session.user_speaking_status[1] < datetime.datetime.now() - datetime.timedelta(
+                        milliseconds=session.config.app.speech_submit_delay_ms
+                ):
+                    session.prompt = None
+                    session.stt_task.cancel()
+                    session.stt_task = asyncio.create_task(stt_sender(session, received_speech_queue))
 
-                logger.warning('Accepted prompt')
+                    logger.warning('Accepted prompt')
 
-                #
-                # if session.config.app.prevalidate_prompt and not await is_prompt_valid(session, prompt, message_history):
-                #     continue
+                    #
+                    # if session.config.app.prevalidate_prompt and not await is_prompt_valid(session, prompt, message_history):
+                    #     continue
 
-                message_history.append({
-                    'role': 'user',
-                    'content': prompt
-                })
-
-                client = AsyncClient(OLLAMA_API_URL)
-
-                async def send_token(token):
-                    await session.client_socket.send_json({
-                        'type': 'token',
-                        'token': token
+                    message_history.append({
+                        'role': 'user',
+                        'content': prompt
                     })
 
-                while True:
-                    tool_answers = []
-                    printable_response = ""
-                    async for sentence_type, content in get_sentences(
-                            client.chat(
-                                model=session.config.ollama.model,
-                                messages=[{'role': 'system',
-                                           'content': session.config.ollama.system_prompt}] + message_history,
-                                stream=True,
-                                # tools=[
-                                #     get_ip_address_def
-                                # ],
-                                options=dict(
-                                    num_ctx=session.config.ollama.ctx_length,
-                                    repeat_penalty=session.config.ollama.repeat_penalty,
-                                    temperature=session.config.ollama.temperature,
-                                )
-                            ),
-                            token_handler=send_token
-                    ):
-                        logger.warning(f'LLM Response: {content}')
-                        if sentence_type == 'interactive':
-                            cleaned = await strip_markdown(content)
+                    client = AsyncClient(OLLAMA_API_URL)
 
-                            logger.warning(f'Adding to TTS queue {cleaned}')
-                            await session.response_tokens_queue.put(cleaned)
-                            printable_response += content
-                        else:
-                            fn = tools.get(content['name'])
-                            if fn:
-                                parameters = content['parameters']
-                                tool_answers.append(fn(**parameters))
-
-                    if len(tool_answers) > 0:
-                        for answer in tool_answers:
-                            message_history.append({
-                                'role': 'tool',
-                                'content': str(answer)
-                            })
-                    else:
-                        message_history.append({
-                            'role': 'assistant',
-                            'content': ''.join(printable_response)
+                    async def send_token(token, token_id):
+                        await session.client_socket.send_json({
+                            'type': 'token',
+                            'token': token,
+                            'id': token_id
                         })
-                        break
 
-        await asyncio.sleep(0.1)
+                    while True:
+                        tool_answers = []
+                        printable_response = ""
+                        async for sentence_type, content in get_sentences(
+                                client.chat(
+                                    model=session.config.ollama.model,
+                                    messages=[{'role': 'system',
+                                               'content': session.config.ollama.system_prompt}] + message_history,
+                                    stream=True,
+                                    # tools=[
+                                    #     get_ip_address_def
+                                    # ],
+                                    options=dict(
+                                        num_ctx=session.config.ollama.ctx_length,
+                                        repeat_penalty=session.config.ollama.repeat_penalty,
+                                        temperature=session.config.ollama.temperature,
+                                    )
+                                ),
+                                token_handler=send_token
+                        ):
+                            logger.warning(f'LLM Response: {content}')
+                            if sentence_type == 'interactive':
+                                cleaned = await strip_markdown(content)
+
+                                logger.warning(f'Adding to TTS queue {cleaned}')
+                                await session.response_tokens_queue.put(cleaned)
+                                printable_response += content
+                            else:
+                                fn = tools.get(content['name'])
+                                if fn:
+                                    parameters = content['parameters']
+                                    tool_answers.append(fn(**parameters))
+
+                        if len(tool_answers) > 0:
+                            for answer in tool_answers:
+                                message_history.append({
+                                    'role': 'tool',
+                                    'content': str(answer)
+                                })
+                        else:
+                            message_history.append({
+                                'role': 'assistant',
+                                'content': ''.join(printable_response)
+                            })
+                            break
+
+            await asyncio.sleep(0.1)
+    except asyncio.CancelledError:
+        logger.warning('LLM task cancelled')
+    except Exception as e:
+        logger.error('Error in LLM task')
+        logger.error(str(e))

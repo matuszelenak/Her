@@ -1,13 +1,11 @@
 import {Route, Routes} from 'react-router-dom';
-import {ChatProvider} from "./Components/ChatProvider.tsx";
-import {NewChatRedirect} from "./Components/NewChatRedirect.tsx";
+import {Chat} from "./Pages/Chat.tsx";
 
 function App() {
     return (
         <>
             <Routes>
-                <Route path="/" element={<NewChatRedirect/>}/>
-                <Route path="/chat/:chatId" element={<ChatProvider/>}/>
+                <Route path="/" element={<Chat/>}/>
             </Routes>
         </>
     )

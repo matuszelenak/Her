@@ -5,7 +5,7 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
         this._cursor = 0;
-        this._bufferSize = 65536 * 4;
+        this._bufferSize = 262144 * 4;
         this._sharedBufferOne = new SharedArrayBuffer(this._bufferSize);
         this._sharedViewOne = new Float32Array(this._sharedBufferOne);
         this._producerCursor = 0

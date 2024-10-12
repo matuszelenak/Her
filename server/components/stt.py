@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import datetime
 import json
 import logging
 
@@ -15,7 +14,8 @@ from utils.session import Session
 logger = logging.getLogger(__name__)
 
 
-async def stt_sender(session: Session):
+
+async def stt_sender(session: Session, received_speech_queue: asyncio.Queue):
     receiver_task = None
     try:
         async for stt_socket in websockets.connect(WHISPER_API_URL):
@@ -27,39 +27,17 @@ async def stt_sender(session: Session):
                         "task": "transcribe",
                         "model": session.config.whisper.model,
                         "use_vad": False
-                        # "use_vad": True,
-                        # "vad_options": {
-                        #     "threshold": 0.5,
-                        #     "min_speech_duration_ms": 400,
-                        #     "max_speech_duration_s": "Infinity",
-                        #     "min_silence_duration_ms": 1000,
-                        #     "window_size_samples": 1536,
-                        #     "speech_pad_ms": 300
-                        # }
                     }
                 ))
 
                 receiver_task = asyncio.create_task(stt_receiver(session, stt_socket))
 
                 while True:
-                    data = await session.client_socket.receive_json()
-                    if data['event'] == 'samples':
-                        samples = base64.b64decode(data['data'])
-                        samples = np.frombuffer(samples, dtype=np.float32)
-                        samples = scipy.signal.resample(samples, round(samples.shape[0] * (16000 / 44100)))
-
-                        # logger.warning(f'Received {samples.shape[0]} samples')
-
-                        if session.user_speaking_status[0]:
-                            await stt_socket.send(samples.tobytes())
-
-                    elif data['event'] == 'speech_end':
-                        logger.warning('Speak end')
-                        session.user_speaking_status = (False, datetime.datetime.now())
-
-                    elif data['event'] == 'speech_start':
-                        logger.warning('Speak start')
-                        session.user_speaking_status = (True, datetime.datetime.now())
+                    samples = await received_speech_queue.get()
+                    samples = base64.b64decode(samples)
+                    samples = np.frombuffer(samples, dtype=np.float32)
+                    samples = scipy.signal.resample(samples, round(samples.shape[0] * (16000 / 44100)))
+                    await stt_socket.send(samples.tobytes())
 
             except websockets.ConnectionClosed:
                 logging.warning('Connection to Whisper closed')

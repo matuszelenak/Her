@@ -23,7 +23,7 @@ export const useAudioPlayer = (audioContext: AudioContext) => {
 
         const freeSpace = getCursorDistance(consumerCursor, producerCursor, buffer.length)
 
-        if (freeSpace < 8192) {
+        if (freeSpace < 32768) {
             return false
         }
 
@@ -61,5 +61,6 @@ export const useAudioPlayer = (audioContext: AudioContext) => {
         init()
     }, []);
 
-    return { feeder }
+    const freeSpace = getCursorDistance(consumerCursor, producerCursor, buffer?.length || 262144)
+    return { feeder, consumerCursor, producerCursor, freeSpace }
 }

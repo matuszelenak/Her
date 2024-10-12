@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -15,12 +16,13 @@ async def get_sentences(token_generator, token_handler):
     llm_response = []
 
     sentence_buffer = ""
+    token_id = 0
     async for part in await token_generator:
         msg = part['message']['content']
 
-        logger.warning(f'LLM: {msg}')
+        # logger.warning(f'LLM: {msg}')
 
-        await token_handler(msg)
+        await token_handler(msg, token_id)
 
         llm_response.append(msg)
 
@@ -41,13 +43,16 @@ async def get_sentences(token_generator, token_handler):
 
         sentence_buffer += msg
 
+        token_id += 1
+
     if sentence_buffer:
         if re.match(tool_call_regex, sentence_buffer):
             yield 'tool_call', json.loads(sentence_buffer)
         else:
             yield 'interactive', sentence_buffer
 
-    await token_handler(None)
+    await asyncio.sleep(0.2)
+    await token_handler(None, token_id)
 
 
 async def strip_markdown(sentence):

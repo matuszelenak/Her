@@ -14,11 +14,8 @@ import {
 import {useMutation, useQuery} from "@tanstack/react-query";
 import {axiosDefault} from "../api.ts";
 
-type ConfigFormProps = {
-    chatId: string
-}
 
-export const ConfigForm = (props: ConfigFormProps) => {
+export const ConfigForm = () => {
 
     const {
         register,
@@ -43,7 +40,7 @@ export const ConfigForm = (props: ConfigFormProps) => {
     const {data: config} = useQuery({
         queryKey: ['config'],
         queryFn: async () => axiosDefault({
-            url: `/config/${props.chatId}`,
+            url: `/config`,
             method: 'get'
         }).then(({data}: {data: Configuration}) => {
             setValue('ollama', data.ollama)
@@ -62,7 +59,7 @@ export const ConfigForm = (props: ConfigFormProps) => {
 
     const configMutation = useMutation({
         mutationFn: async (data: Configuration) => await axiosDefault({
-            url: `/config/${props.chatId}`,
+            url: `/config`,
             method: 'POST',
             data: {
 
