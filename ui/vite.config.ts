@@ -37,4 +37,7 @@ export default defineConfig({
         port: 5000,
         open: false,
     },
+    worker: {
+        format: 'es'
+    }
 })
