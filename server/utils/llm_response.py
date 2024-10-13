@@ -56,15 +56,11 @@ async def get_sentences(token_generator, token_handler):
 
 
 async def strip_markdown(sentence):
-
-    # md -> html -> text since BeautifulSoup can extract text cleanly
     html = markdown(sentence)
 
-    # remove code snippets
     html = re.sub(r'<pre>(.*?)</pre>', ' ', html)
     html = re.sub(r'<code>(.*?)</code >', ' ', html)
 
-    # extract text
     soup = BeautifulSoup(html, "html.parser")
     text = ''.join(soup.findAll(text=True))
 

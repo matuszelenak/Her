@@ -1,14 +1,13 @@
 import useWebSocket from "react-use-websocket";
 import {useAudioPlayer} from "../utils/audioPlayer.ts";
-import {useAudioRecorder} from "../utils/audioRecorder.ts";
 import Grid from "@mui/material/Grid2";
 import {Paper, Slider, Stack, Typography} from "@mui/material";
 import {useEffect, useState} from "react";
 import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
-import {useMicVAD} from "@ricky0123/vad-react"
 import {arrayBufferToBase64, base64ToArrayBuffer} from "../utils/encoding.ts";
 import {ConfigForm} from "../Components/ConfigForm.tsx";
+import {useMicVAD} from "../utils/vad/useMic.tsx";
 
 
 type Message = {
@@ -71,17 +70,13 @@ export const Chat = () => {
 
     useMicVAD({
         startOnLoad: true,
-        onSpeechStart: () => {
+        onSpeechFrames: (audio: Float32Array) => {
             sendJsonMessage({
-                'event': 'speech_start'
+                'event': 'samples',
+                'data': arrayBufferToBase64(audio.buffer)
             })
         },
         onSpeechEnd: () => {
-            sendJsonMessage({
-                'event': 'speech_end'
-            })
-        },
-        onVADMisfire: () => {
             sendJsonMessage({
                 'event': 'speech_end'
             })
@@ -91,20 +86,10 @@ export const Chat = () => {
         }
     })
 
-    useAudioRecorder((buffer: ArrayBuffer) => {
-        sendJsonMessage({
-            'event': 'samples',
-            'data': arrayBufferToBase64(buffer)
-        })
-    })
-
     return (
         <>
             <Grid container spacing={2} sx={{height: '100vh', margin: 0}}>
                 <Grid size={3}>
-
-                </Grid>
-                <Grid size={6} sx={{maxHeight: '100vh'}}>
                     <Slider
                         track={false}
                         min={0}
@@ -117,35 +102,43 @@ export const Chat = () => {
                         max={262144}
                         value={producerCursor}
                     />
+                </Grid>
+                <Grid size={6} sx={{maxHeight: '100vh'}}>
+
                     <ScrollableFeed>
                         {messages.map((message: Message, i: number) => (
                             <Stack key={i} direction="row"
                                    justifyContent={message.role === 'agent' ? 'flex-start' : 'flex-end'}
                                    sx={{margin: 2}}>
                                 <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
-                                    <Markdown>
-                                        {message.message.join('')}
-                                    </Markdown>
+                                    <Typography>
+                                        <Markdown>
+                                            {message.message.join('')}
+                                        </Markdown>
+                                    </Typography>
+
                                 </Paper>
                             </Stack>
                         ))}
                         {userMessage !== "" && (
                             <Stack direction="row" justifyContent={'flex-end'} sx={{margin: 2}}>
                                 <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
-                                    <Markdown>
-                                        {userMessage}
-                                    </Markdown>
-
+                                    <Typography>
+                                        <Markdown>
+                                            {userMessage}
+                                        </Markdown>
+                                    </Typography>
                                 </Paper>
                             </Stack>
                         )}
                         {agentMessage.length > 0 && (
                             <Stack direction="row" justifyContent={'flex-start'} sx={{margin: 2}}>
                                 <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
-                                    <Markdown>
-                                        {agentMessage.join('')}
-                                    </Markdown>
-
+                                    <Typography>
+                                        <Markdown>
+                                            {agentMessage.join('')}
+                                        </Markdown>
+                                    </Typography>
                                 </Paper>
                             </Stack>
                         )}

@@ -11,9 +11,8 @@ import starlette
 from fastapi import FastAPI, WebSocket
 from ollama import AsyncClient, Client
 
-from components.llm import llm_submitter
-from components.stt import stt_sender
-from components.tts import tts_receiver
+from tasks.coordination import coordination_task
+from tasks.stt import stt_sender
 from utils.configuration import SessionConfig, get_default_config
 from utils.constants import OLLAMA_API_URL, XTTS2_API_URL, WHISPER_API_URL
 from utils.session import get_session, terminate_session, Session
@@ -73,45 +72,41 @@ async def websocket_input_endpoint(websocket: WebSocket):
     global session
     await websocket.accept()
 
-    logger.warning(f"New client connected")
+    logger.info(f"New client connected")
 
     session = Session(
         str(uuid4()),
-        get_default_config()
+        get_default_config(),
+        message_history=[]
     )
     session.client_socket = websocket
 
-    cl_receiver = None
+    coordinator = None
     try:
         received_speech_queue = asyncio.Queue()
 
+        coordinator = asyncio.create_task(coordination_task(session, received_speech_queue))
         session.stt_task = asyncio.create_task(stt_sender(session, received_speech_queue))
-        session.llm_submit_task = asyncio.create_task(llm_submitter(session, received_speech_queue))
-        session.tts_task = asyncio.create_task(tts_receiver(session))
 
         while True:
             data = await websocket.receive_json()
             if data['event'] == 'free_space':
                 session.free_samples = data["value"]
-                logger.warning(f'Free {data["value"]}')
+                # logger.warning(f'Free {data["value"]}')
 
             elif data['event'] == 'resp_wait':
                 logger.warning('Throttling!')
 
-            elif data['event'] == 'resp_ok':
-                session.last_accepted_speech_id = data['id']
+            # elif data['event'] == 'resp_ok':
+            #     session.last_accepted_speech_id = data['id']
 
             elif data['event'] == 'samples':
-                if session.user_speaking_status[0]:
-                    await received_speech_queue.put(data['data'])
+                session.user_speaking_status = (True, datetime.now())
+                await received_speech_queue.put(data['data'])
 
             elif data['event'] == 'speech_end':
-                logger.warning('Speak end')
+                logger.info('Speak end')
                 session.user_speaking_status = (False, datetime.now())
-
-            elif data['event'] == 'speech_start':
-                logger.warning('Speak start')
-                session.user_speaking_status = (True, datetime.now())
 
     except starlette.websockets.WebSocketDisconnect:
         pass
@@ -121,8 +116,8 @@ async def websocket_input_endpoint(websocket: WebSocket):
         logger.error(str(e))
 
     finally:
-        if cl_receiver is not None:
-            cl_receiver.cancel()
+        if coordinator is not None:
+            coordinator.cancel()
 
         logger.warning(f'Terminating client')
         session.terminate()

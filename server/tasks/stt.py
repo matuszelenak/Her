@@ -35,8 +35,9 @@ async def stt_sender(session: Session, received_speech_queue: asyncio.Queue):
                 while True:
                     samples = await received_speech_queue.get()
                     samples = base64.b64decode(samples)
+                    # logger.warning(f'Received {len(samples)} samples')
                     samples = np.frombuffer(samples, dtype=np.float32)
-                    samples = scipy.signal.resample(samples, round(samples.shape[0] * (16000 / 44100)))
+                    # samples = scipy.signal.resample(samples, round(samples.shape[0] * (16000 / 44100)))
                     await stt_socket.send(samples.tobytes())
 
             except websockets.ConnectionClosed:
@@ -119,7 +120,7 @@ async def stt_receiver(session: Session, socket):
 
     async for message in socket:
         resp = json.loads(message)
-        # logger.warning(resp)
+        logger.warning(resp)
         try:
             segments = [x for x in resp['segments'] if float(x['start']) > last_cutoff]
             if len(segments) == 0:
