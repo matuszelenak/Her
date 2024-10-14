@@ -1,4 +1,3 @@
-import * as ortInstance from "onnxruntime-web"
 import {assetPath} from "./asset-path"
 import {defaultModelFetcher} from "./default-model-fetcher"
 import {OrtOptions, Silero, SpeechProbabilities} from "./models.ts";
@@ -53,8 +52,6 @@ interface RealTimeVADOptionsWithStream
         AssetOptions {
     stream: MediaStream
 }
-
-export const ort = ortInstance
 
 export type RealTimeVADOptions =
     | RealTimeVADOptionsWithStream

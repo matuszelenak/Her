@@ -80,9 +80,6 @@ export const Chat = () => {
             sendJsonMessage({
                 'event': 'speech_end'
             })
-        },
-        ortConfig: (ort) => {
-            ort.env.wasm.wasmPaths = "/";
         }
     })
 
@@ -145,7 +142,7 @@ export const Chat = () => {
                     </ScrollableFeed>
                 </Grid>
                 <Grid size={3}>
-                    <ConfigForm/>
+                    {/*<ConfigForm/>*/}
                 </Grid>
             </Grid>
         </>
