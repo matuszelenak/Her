@@ -1,6 +1,6 @@
-FROM python:3.12-alpine3.20
+FROM python:3.12-slim-bookworm
 
-RUN apk update
+RUN apt update && apt install -y gcc libpq-dev
 
 WORKDIR /app
 

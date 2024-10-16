@@ -11,6 +11,16 @@ services:
       - server
       - ui
 
+  database:
+    container_name: ai-girlfriend-database
+    image: postgres:14.3
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env
+
   server:
     container_name: ai-girlfriend-server
     env_file:
@@ -34,3 +44,6 @@ services:
       - "5000:5000"
     volumes:
       - ./ui:/app
+
+volumes:
+  postgres-data:
