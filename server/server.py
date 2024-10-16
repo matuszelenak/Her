@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -123,6 +123,17 @@ async def websocket_input_endpoint(websocket: WebSocket):
             elif data['event'] == 'speech_end':
                 logger.info('Speak end')
                 session.user_speaking_status = (False, datetime.now())
+
+            elif data['event'] == 'text_prompt':
+                session.prompt = data['prompt']
+                session.user_speaking_status = (
+                    False,
+                    datetime.now() - timedelta(session.config.app.speech_submit_delay_ms / 1000 + 1)
+                )
+                await session.client_socket.send_json({
+                    'type': 'stt_output',
+                    'text': data['prompt']
+                })
 
     except starlette.websockets.WebSocketDisconnect:
         pass

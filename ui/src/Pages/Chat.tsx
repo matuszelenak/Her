@@ -1,7 +1,7 @@
 import useWebSocket from "react-use-websocket";
 import {useAudioPlayer} from "../utils/audioPlayer.ts";
 import Grid from "@mui/material/Grid2";
-import {Paper, Slider, Stack, Typography} from "@mui/material";
+import {Button, Paper, Slider, Stack, TextField, Typography} from "@mui/material";
 import {useEffect, useState} from "react";
 import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
@@ -83,6 +83,8 @@ export const Chat = () => {
         }
     })
 
+    const [textInputPrompt, setTextInputPrompt] = useState("")
+
     return (
         <>
             <Grid container spacing={2} sx={{height: '100vh', margin: 0}}>
@@ -101,45 +103,73 @@ export const Chat = () => {
                     />
                 </Grid>
                 <Grid size={6} sx={{maxHeight: '100vh'}}>
+                    <Stack direction="column" justifyContent="space-between" sx={{height: "100%"}} spacing={2}>
+                        <ScrollableFeed>
+                            {messages.map((message: Message, i: number) => (
+                                <Stack key={i} direction="row"
+                                       justifyContent={message.role === 'agent' ? 'flex-start' : 'flex-end'}
+                                       sx={{margin: 2}}>
+                                    <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
+                                        <Typography>
+                                            <Markdown>
+                                                {message.message.join('')}
+                                            </Markdown>
+                                        </Typography>
 
-                    <ScrollableFeed>
-                        {messages.map((message: Message, i: number) => (
-                            <Stack key={i} direction="row"
-                                   justifyContent={message.role === 'agent' ? 'flex-start' : 'flex-end'}
-                                   sx={{margin: 2}}>
-                                <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
-                                    <Typography>
-                                        <Markdown>
-                                            {message.message.join('')}
-                                        </Markdown>
-                                    </Typography>
-
-                                </Paper>
-                            </Stack>
-                        ))}
-                        {userMessage !== "" && (
-                            <Stack direction="row" justifyContent={'flex-end'} sx={{margin: 2}}>
-                                <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
-                                    <Typography>
-                                        <Markdown>
-                                            {userMessage}
-                                        </Markdown>
-                                    </Typography>
-                                </Paper>
-                            </Stack>
-                        )}
-                        {agentMessage.length > 0 && (
-                            <Stack direction="row" justifyContent={'flex-start'} sx={{margin: 2}}>
-                                <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
-                                    <Typography>
-                                        <Markdown>
-                                            {agentMessage.join('')}
-                                        </Markdown>
-                                    </Typography>
-                                </Paper>
-                            </Stack>
-                        )}
-                    </ScrollableFeed>
+                                    </Paper>
+                                </Stack>
+                            ))}
+                            {userMessage !== "" && (
+                                <Stack direction="row" justifyContent={'flex-end'} sx={{margin: 2}}>
+                                    <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
+                                        <Typography>
+                                            <Markdown>
+                                                {userMessage}
+                                            </Markdown>
+                                        </Typography>
+                                    </Paper>
+                                </Stack>
+                            )}
+                            {agentMessage.length > 0 && (
+                                <Stack direction="row" justifyContent={'flex-start'} sx={{margin: 2}}>
+                                    <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
+                                        <Typography>
+                                            <Markdown>
+                                                {agentMessage.join('')}
+                                            </Markdown>
+                                        </Typography>
+                                    </Paper>
+                                </Stack>
+                            )}
+                        </ScrollableFeed>
+                        <Stack direction="row" spacing={1} justifyContent="space-between" padding={2}>
+                            <TextField
+                                fullWidth
+                                variant="outlined"
+                                size="medium"
+                                value={textInputPrompt}
+                                onChange={(e) => setTextInputPrompt(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.keyCode === 13) {
+                                        sendJsonMessage({
+                                            event: 'text_prompt',
+                                            prompt: textInputPrompt
+                                        })
+                                        setTextInputPrompt("")
+                                    }
+                                }}
+                            />
+                            <Button variant="outlined" onClick={() => {
+                                sendJsonMessage({
+                                    event: 'text_prompt',
+                                    prompt: textInputPrompt
+                                })
+                                setTextInputPrompt("")
+                            }}>
+                                Submit
+                            </Button>
+                        </Stack>
+                    </Stack>
                 </Grid>
                 <Grid size={3}>
                     {/*<ConfigForm/>*/}
