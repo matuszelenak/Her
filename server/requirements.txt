@@ -8,3 +8,7 @@ requests
 sortedcontainers
 markdown
 beautifulsoup4
+sqlalchemy[asyncio]
+alembic
+psycopg2
+asyncpg

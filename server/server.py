@@ -8,9 +8,14 @@ from uuid import uuid4
 
 import requests
 import starlette
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Depends
+from fastapi.encoders import jsonable_encoder
 from ollama import AsyncClient, Client
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from db.models import Chat
+from db.session import get_db
 from tasks.coordination import coordination_task
 from tasks.stt import stt_sender
 from utils.configuration import SessionConfig, get_default_config
@@ -51,6 +56,17 @@ async def get_status():
         statuses['ollama'] = False
 
     return statuses
+
+
+@app.get('/chats')
+async def get_chats(db: AsyncSession = Depends(get_db)):
+    query = select(Chat).order_by('id')
+
+    result = await db.execute(query)
+    result = result.scalars()
+    result = list(result)
+
+    return jsonable_encoder(result)
 
 
 @app.get('/config')
