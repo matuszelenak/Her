@@ -34,9 +34,3 @@ jobs:
           context: ui
           file: ui/Dockerfile
           tags: ghcr.io/matuszelenak/ai-girlfriend-ui:latest
-
-      - name: Deploy
-        uses: fjogeleit/http-request-action@v1
-        with:
-          url: ${{ secrets.PORTAINER_HOOK }}
-          method: 'POST'

@@ -37,13 +37,13 @@ services:
     container_name: ai-girlfriend-ui
     build:
       context: ui
-      dockerfile: dev.Dockerfile
+      dockerfile: Dockerfile
     depends_on:
       - server
     ports:
-      - "5000:5000"
-    volumes:
-      - ./ui:/app
+      - "5000:80"
+#    volumes:
+#      - ./ui:/app
 
 volumes:
   postgres-data:

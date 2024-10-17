@@ -71,8 +71,8 @@ export const Chat = () => {
     const [notifySpeechEnd, setNotifySpeechEnd] = useState<NodeJS.Timeout | null>(null)
     const [speechConfirmDelay, setSpeechConfirmDelay] = useState(2000)
 
-    useMicVAD({
-        startOnLoad: true,
+    const vad = useMicVAD({
+        startOnLoad: false,
         onSpeechFrames: (audio: Float32Array) => {
             sendJsonMessage({
                 'event': 'samples',
@@ -184,6 +184,11 @@ export const Chat = () => {
                     </Stack>
                 </Grid>
                 <Grid size={3}>
+                    <Button onClick={() => {
+                        vad.toggle()
+                    }}>
+                        { vad.listening ? "Stop listening" : "Start listening" }
+                    </Button>
                     <Slider
                         min={200}
                         max={10000}
