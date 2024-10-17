@@ -22,7 +22,7 @@ async def get_sentences(token_generator, token_handler):
 
         # logger.warning(f'LLM: {msg}')
 
-        await token_handler(msg, token_id)
+        await token_handler(part, token_id)
 
         llm_response.append(msg)
 
@@ -52,7 +52,6 @@ async def get_sentences(token_generator, token_handler):
             yield 'interactive', sentence_buffer
 
     await asyncio.sleep(0.2)
-    await token_handler(None, token_id)
 
 
 async def strip_markdown(sentence):

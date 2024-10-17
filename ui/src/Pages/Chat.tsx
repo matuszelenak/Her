@@ -8,6 +8,7 @@ import ScrollableFeed from "react-scrollable-feed";
 import {arrayBufferToBase64, base64ToArrayBuffer} from "../utils/encoding.ts";
 import {ConfigForm} from "../Components/ConfigForm.tsx";
 import {useMicVAD} from "../utils/vad/useMic.tsx";
+import {Token, WebsocketEvent} from "../types.ts";
 
 
 type Message = {
@@ -21,7 +22,7 @@ export const Chat = () => {
 
     const [messages, setMessages] = useState<Message[]>([])
     const [userMessage, setUserMessage] = useState("")
-    const [agentMessage, setAgentMessage] = useState<Array<string | null>>([])
+    const [agentMessage, setAgentMessage] = useState<Array<Token>>([])
 
     const {feeder, consumerCursor, producerCursor, freeSpace} = useAudioPlayer(audioContext)
 
@@ -31,7 +32,7 @@ export const Chat = () => {
         `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws`,
         {
             onMessage: (event: WebSocketEventMap['message']) => {
-                const message = JSON.parse(event.data)
+                const message = JSON.parse(event.data) as WebsocketEvent
 
                 if (message.type == 'speech') {
                     const audioData = new Float32Array(base64ToArrayBuffer(message.samples))
@@ -43,7 +44,7 @@ export const Chat = () => {
                         setMessages((prevState: Message[]) => [...prevState, {role: 'user', message: [userMessage]}])
                         setUserMessage("")
                     }
-                    setAgentMessage((prevState) => ([...prevState, message.token?.replaceAll('\n', '\r\n')]))
+                    setAgentMessage((prevState) => ([...prevState, message.token]))
                 }
 
                 if (message.type == 'stt_output') {
@@ -56,9 +57,9 @@ export const Chat = () => {
     );
 
     useEffect(() => {
-        if (agentMessage.length > 0 && agentMessage[agentMessage.length - 1] == null) {
+        if (agentMessage.length > 0 && agentMessage[agentMessage.length - 1].done) {
             setMessages((prevState: Message[]) => {
-                return [...prevState, {role: 'agent', message: agentMessage.filter(token => token !== null)}]
+                return [...prevState, {role: 'agent', message: agentMessage.map(token => token.message.content.replaceAll('\n', '\r\n'))}]
             })
             setAgentMessage((_) => [])
         }
@@ -135,7 +136,7 @@ export const Chat = () => {
                                     <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                         <Typography>
                                             <Markdown>
-                                                {agentMessage.join('')}
+                                                {agentMessage.map(token => token.message.content.replaceAll('\n', '\r\n')).join('')}
                                             </Markdown>
                                         </Typography>
                                     </Paper>

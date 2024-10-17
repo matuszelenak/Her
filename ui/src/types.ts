@@ -22,3 +22,28 @@ export type OllamaModel = {
     name: string
     size: number
 }
+
+
+export type Token = {
+    message: {
+        role: 'assistant' | 'user'
+        content: string
+    }
+    done: boolean
+    prompt_eval_count?: number
+    prompt_eval_duration?: number
+    eval_count?: number
+    eval_duration?: number
+}
+
+
+export type WebsocketEvent = {
+    type: 'token'
+    token: Token
+} | {
+    type: 'stt_output'
+    text: string
+} | {
+    type: 'speech'
+    samples: string
+}
