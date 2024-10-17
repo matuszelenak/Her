@@ -10,6 +10,7 @@ RUN pip install -r requirements.txt
 COPY server.py server.py
 COPY utils utils
 COPY tasks tasks
+COPY db db
 COPY config.json config.json
 
 ENTRYPOINT ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
