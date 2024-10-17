@@ -3,7 +3,10 @@ name: Build server Docker image
 on:
   push:
     branches:
-      - 'main'
+      - main
+    paths:
+      - 'server/**'
+      - '.github/workflows/docker-server-build.yaml'
 
 jobs:
   build:
@@ -31,3 +34,9 @@ jobs:
           context: server
           file: server/Dockerfile
           tags: ghcr.io/matuszelenak/ai-girlfriend-server:latest
+
+      - name: Deploy
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: ${{ secrets.PORTAINER_HOOK }}
+          method: 'POST'
