@@ -17,6 +17,7 @@ class Session:
     config: SessionConfig
     client_socket: WebSocket = None
     stt_task: Optional[asyncio.Task] = None
+    llm_task: Optional[asyncio.Task] = None
     tts_task: Optional[asyncio.Task] = None
 
     message_history: List[dict] = None

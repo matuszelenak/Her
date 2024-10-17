@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import Chat
 from db.session import get_db
-from tasks.coordination import coordination_task
+from tasks.coordination import trigger_llm
 from tasks.stt import stt_sender
 from utils.configuration import SessionConfig, get_default_config
 from utils.constants import OLLAMA_API_URL, XTTS2_API_URL, WHISPER_API_URL
@@ -101,7 +101,6 @@ async def websocket_input_endpoint(websocket: WebSocket):
     try:
         received_speech_queue = asyncio.Queue()
 
-        coordinator = asyncio.create_task(coordination_task(session, received_speech_queue))
         session.stt_task = asyncio.create_task(stt_sender(session, received_speech_queue))
 
         while True:
@@ -124,16 +123,20 @@ async def websocket_input_endpoint(websocket: WebSocket):
                 logger.info('Speak end')
                 session.user_speaking_status = (False, datetime.now())
 
+            elif data['event'] == 'speech_prompt_end':
+                if session.prompt:
+                    trigger_llm(session, received_speech_queue)
+
             elif data['event'] == 'text_prompt':
-                session.prompt = data['prompt']
-                session.user_speaking_status = (
-                    False,
-                    datetime.now() - timedelta(session.config.app.speech_submit_delay_ms / 1000 + 1)
-                )
+                session.prompt = f'{session.prompt or ""}{data["prompt"]}'
+
                 await session.client_socket.send_json({
                     'type': 'stt_output',
                     'text': data['prompt']
                 })
+
+                trigger_llm(session, received_speech_queue)
+
 
     except starlette.websockets.WebSocketDisconnect:
         pass

@@ -1,5 +1,4 @@
 import asyncio
-import datetime
 import logging
 
 from tasks.llm import llm_query_task
@@ -9,33 +8,20 @@ from utils.session import Session
 logger = logging.getLogger(__name__)
 
 
-async def coordination_task(session: Session, received_speech_queue: asyncio.Queue):
-    try:
-        llm_task = None
-        while True:
-            if session.prompt:
-                if session.tts_task is not None and not session.tts_task.done():
-                    session.tts_task.cancel()
-                    session.tts_task = None
+def trigger_llm(session: Session, received_speech_queue: asyncio.Queue):
+    if session.tts_task is not None and not session.tts_task.done():
+        session.tts_task.cancel()
+        session.tts_task = None
 
-                if llm_task is not None and not llm_task.done():
-                    llm_task.cancel()
-                    llm_task = None
+    if session.llm_task is not None and not session.llm_task.done():
+        session.llm_task.cancel()
+        session.llm_task = None
 
-                prompt = session.prompt
-                if (session.user_speaking_status[0] == False
-                        and session.user_speaking_status[1] < datetime.datetime.now() - datetime.timedelta(
-                            milliseconds=session.config.app.speech_submit_delay_ms
-                        )
-                ):
-                    logger.warning(f'Accepted prompt {prompt}')
+    prompt = session.prompt
+    session.prompt = None
 
-                    llm_task = asyncio.create_task(llm_query_task(session, prompt))
-                    session.prompt = None
-                    session.stt_task.cancel()
-                    session.stt_task = asyncio.create_task(stt_sender(session, received_speech_queue))
+    logger.warning(f'Accepted prompt {prompt}')
 
-            await asyncio.sleep(0.1)
-    except Exception as e:
-        logger.error('Exception in coordinator')
-        logger.error(str(e))
+    session.llm_task = asyncio.create_task(llm_query_task(session, prompt))
+    session.stt_task.cancel()
+    session.stt_task = asyncio.create_task(stt_sender(session, received_speech_queue))

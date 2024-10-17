@@ -6,7 +6,6 @@ import {useEffect, useState} from "react";
 import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
 import {arrayBufferToBase64, base64ToArrayBuffer} from "../utils/encoding.ts";
-import {ConfigForm} from "../Components/ConfigForm.tsx";
 import {useMicVAD} from "../utils/vad/useMic.tsx";
 import {Token, WebsocketEvent} from "../types.ts";
 
@@ -36,7 +35,7 @@ export const Chat = () => {
 
                 if (message.type == 'speech') {
                     const audioData = new Float32Array(base64ToArrayBuffer(message.samples))
-                    const wasConsumed = feeder(audioData)
+                    feeder(audioData)
                 }
 
                 if (message.type == 'token') {
@@ -69,6 +68,9 @@ export const Chat = () => {
         sendJsonMessage({event: 'free_space', value: freeSpace})
     }, [freeSpace])
 
+    const [notifySpeechEnd, setNotifySpeechEnd] = useState<NodeJS.Timeout | null>(null)
+    const [speechConfirmDelay, setSpeechConfirmDelay] = useState(2000)
+
     useMicVAD({
         startOnLoad: true,
         onSpeechFrames: (audio: Float32Array) => {
@@ -81,6 +83,15 @@ export const Chat = () => {
             sendJsonMessage({
                 'event': 'speech_end'
             })
+            if (notifySpeechEnd !== null) {
+                clearTimeout(notifySpeechEnd)
+            }
+            setNotifySpeechEnd(setTimeout(() => {
+                console.log('Confirm speech submission')
+                sendJsonMessage({
+                    'event': 'speech_prompt_end'
+                })
+            }, speechConfirmDelay))
         }
     })
 
@@ -173,6 +184,13 @@ export const Chat = () => {
                     </Stack>
                 </Grid>
                 <Grid size={3}>
+                    <Slider
+                        min={200}
+                        max={10000}
+                        step={250}
+                        value={speechConfirmDelay}
+                        onChange={(_: Event, newValue: number | number[]) => setSpeechConfirmDelay(newValue as number)}
+                    />
                     {/*<ConfigForm/>*/}
                 </Grid>
             </Grid>
