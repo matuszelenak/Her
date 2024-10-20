@@ -12,5 +12,6 @@ COPY utils utils
 COPY tasks tasks
 COPY db db
 COPY config.json config.json
+COPY alembic.ini alembic.ini
 
 ENTRYPOINT ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
