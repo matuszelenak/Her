@@ -8,7 +8,7 @@ const getCursorDistance = (consumer: number, producer: number, totalLength: numb
     }
 }
 
-export const useAudioPlayer = (audioContext: AudioContext) => {
+export const useAudioPlayer = (enabled: boolean) => {
     const [audioNode, setAudioNode] = useState<AudioWorkletNode | null>(null)
 
     const [buffer, setBuffer] = useState<Float32Array | null>(null)
@@ -40,6 +40,7 @@ export const useAudioPlayer = (audioContext: AudioContext) => {
 
     useEffect(() => {
         const init = async () => {
+            const audioContext = new AudioContext();
             await audioContext.audioWorklet.addModule('/ringBufferPlayer.js');
             const audioNode = new AudioWorkletNode(audioContext, 'playback-processor');
 
@@ -58,8 +59,10 @@ export const useAudioPlayer = (audioContext: AudioContext) => {
             audioNode.connect(audioContext.destination);
         }
 
-        init()
-    }, []);
+        if (enabled && buffer == null) {
+            init()
+        }
+    }, [enabled]);
 
     const freeSpace = getCursorDistance(consumerCursor, producerCursor, buffer?.length || 262144)
     return { feeder, consumerCursor, producerCursor, freeSpace }

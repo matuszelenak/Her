@@ -137,6 +137,9 @@ async def websocket_input_endpoint(websocket: WebSocket):
 
                 trigger_llm(session, received_speech_queue)
 
+            elif data['event'] == 'speech_toggle':
+                session.speech_enabled = data['value']
+
 
     except starlette.websockets.WebSocketDisconnect:
         pass

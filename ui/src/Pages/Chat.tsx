@@ -17,13 +17,13 @@ type Message = {
 
 
 export const Chat = () => {
-    const audioContext = new AudioContext();
-
     const [messages, setMessages] = useState<Message[]>([])
     const [userMessage, setUserMessage] = useState("")
     const [agentMessage, setAgentMessage] = useState<Array<Token>>([])
 
-    const {feeder, consumerCursor, producerCursor, freeSpace} = useAudioPlayer(audioContext)
+    const [speechEnabled, setSpeechEnabled] = useState(false)
+
+    const {feeder, consumerCursor, producerCursor, freeSpace} = useAudioPlayer(speechEnabled)
 
     const {
         sendJsonMessage,
@@ -184,10 +184,20 @@ export const Chat = () => {
                     </Stack>
                 </Grid>
                 <Grid size={3}>
-                    <Button onClick={() => {
+                    <Button variant="outlined" onClick={() => {
                         vad.toggle()
                     }}>
                         { vad.listening ? "Stop listening" : "Start listening" }
+                    </Button>
+
+                    <Button variant="outlined" onClick={() => {
+                        sendJsonMessage({
+                            event: 'speech_toggle',
+                            value: !speechEnabled
+                        })
+                        setSpeechEnabled((prevState) => !prevState)
+                    }}>
+                        { speechEnabled ? "Disable speech" : "Enable speech" }
                     </Button>
                     <Slider
                         min={200}

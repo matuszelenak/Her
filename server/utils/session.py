@@ -27,6 +27,8 @@ class Session:
     last_accepted_speech_id: Optional[str] = None
     free_samples: int = 0
 
+    speech_enabled: bool = True
+
     def terminate(self):
         if self.stt_task:
             self.stt_task.cancel()

@@ -34,7 +34,8 @@ async def llm_query_task(session: Session, prompt: str):
             })
 
         llm_response_queue = asyncio.Queue()
-        session.tts_task = asyncio.create_task(tts_task(session, llm_response_queue))
+        if session.speech_enabled:
+            session.tts_task = asyncio.create_task(tts_task(session, llm_response_queue))
 
         while True:
             tool_answers = []
@@ -63,7 +64,8 @@ async def llm_query_task(session: Session, prompt: str):
                     cleaned = await strip_markdown(content)
 
                     logger.info(f'Adding to TTS queue {cleaned}')
-                    await llm_response_queue.put(cleaned)
+                    if session.speech_enabled:
+                        await llm_response_queue.put(cleaned)
 
                     printable_response += content
                 else:
@@ -85,7 +87,8 @@ async def llm_query_task(session: Session, prompt: str):
                 })
                 break
 
-        await llm_response_queue.put(None)
+        if session.speech_enabled:
+            await llm_response_queue.put(None)
 
     except asyncio.CancelledError:
         logger.warning('LLM task cancelled')
