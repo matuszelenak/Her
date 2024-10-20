@@ -8,15 +8,19 @@ import ScrollableFeed from "react-scrollable-feed";
 import {arrayBufferToBase64, base64ToArrayBuffer} from "../utils/encoding.ts";
 import {useMicVAD} from "../utils/vad/useMic.tsx";
 import {Token, WebsocketEvent} from "../types.ts";
+import {ChatList} from "../Components/ChatList.tsx";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {axiosDefault} from "../api.ts";
 
 
 type Message = {
-    role: 'user' | 'agent'
+    role: 'user' | 'assistant'
     message: string[]
 }
 
 
-export const Chat = () => {
+export const Chat = ({chatId}: {chatId?: string}) => {
+    const queryClient = useQueryClient()
     const [messages, setMessages] = useState<Message[]>([])
     const [userMessage, setUserMessage] = useState("")
     const [agentMessage, setAgentMessage] = useState<Array<Token>>([])
@@ -25,10 +29,25 @@ export const Chat = () => {
 
     const {feeder, consumerCursor, producerCursor, freeSpace} = useAudioPlayer(speechEnabled)
 
+    useQuery({
+        queryKey: ['chat', chatId],
+        queryFn: async () => axiosDefault({
+            url: `/chat/${chatId}`,
+            method: 'get'
+        }).then(({data}) => {
+            setMessages(data.messages.map((msg: any) => ({
+                ...msg,
+                message: [msg.content]
+            })))
+            return []
+        }),
+        enabled: !!chatId
+    })
+
     const {
         sendJsonMessage,
     } = useWebSocket(
-        `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws`,
+        `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws${chatId ? "/" + chatId : ""}`,
         {
             onMessage: (event: WebSocketEventMap['message']) => {
                 const message = JSON.parse(event.data) as WebsocketEvent
@@ -49,6 +68,10 @@ export const Chat = () => {
                 if (message.type == 'stt_output') {
                     setUserMessage(message.text)
                 }
+
+                if (message.type == 'new_chat') {
+                    queryClient.invalidateQueries({queryKey: ['chat_list']})
+                }
             },
             reconnectAttempts: 1000,
             reconnectInterval: 2000
@@ -58,7 +81,7 @@ export const Chat = () => {
     useEffect(() => {
         if (agentMessage.length > 0 && agentMessage[agentMessage.length - 1].done) {
             setMessages((prevState: Message[]) => {
-                return [...prevState, {role: 'agent', message: agentMessage.map(token => token.message.content.replaceAll('\n', '\r\n'))}]
+                return [...prevState, {role: 'assistant', message: agentMessage.map(token => token.message.content.replaceAll('\n', '\r\n'))}]
             })
             setAgentMessage((_) => [])
         }
@@ -101,25 +124,14 @@ export const Chat = () => {
         <>
             <Grid container spacing={2} sx={{height: '100vh', margin: 0}}>
                 <Grid size={3}>
-                    <Slider
-                        track={false}
-                        min={0}
-                        max={262144}
-                        value={consumerCursor}
-                    />
-                    <Slider
-                        track={false}
-                        min={0}
-                        max={262144}
-                        value={producerCursor}
-                    />
+                    <ChatList/>
                 </Grid>
                 <Grid size={6} sx={{maxHeight: '100vh'}}>
                     <Stack direction="column" justifyContent="space-between" sx={{height: "100%"}} spacing={2}>
                         <ScrollableFeed>
                             {messages.map((message: Message, i: number) => (
                                 <Stack key={i} direction="row"
-                                       justifyContent={message.role === 'agent' ? 'flex-start' : 'flex-end'}
+                                       justifyContent={message.role === 'assistant' ? 'flex-start' : 'flex-end'}
                                        sx={{margin: 2}}>
                                     <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                         <Typography>
@@ -207,6 +219,18 @@ export const Chat = () => {
                         onChange={(_: Event, newValue: number | number[]) => setSpeechConfirmDelay(newValue as number)}
                     />
                     {/*<ConfigForm/>*/}
+                    <Slider
+                        track={false}
+                        min={0}
+                        max={262144}
+                        value={consumerCursor}
+                    />
+                    <Slider
+                        track={false}
+                        min={0}
+                        max={262144}
+                        value={producerCursor}
+                    />
                 </Grid>
             </Grid>
         </>

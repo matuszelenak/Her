@@ -11,8 +11,9 @@ import starlette
 from fastapi import FastAPI, WebSocket, Depends
 from fastapi.encoders import jsonable_encoder
 from ollama import AsyncClient, Client
-from sqlalchemy import select
+from sqlalchemy import select, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from db.models import Chat
 from db.session import get_db
@@ -60,7 +61,7 @@ async def get_status():
 
 @app.get('/chats')
 async def get_chats(db: AsyncSession = Depends(get_db)):
-    query = select(Chat).order_by('id')
+    query = select(Chat).options(load_only(Chat.id, Chat.started_at, Chat.header)).order_by(desc('started_at'))
 
     result = await db.execute(query)
     result = result.scalars()
@@ -68,6 +69,20 @@ async def get_chats(db: AsyncSession = Depends(get_db)):
 
     return jsonable_encoder(result)
 
+
+@app.get('/chat/{chat_id}')
+async def get_chats(chat_id: str, db: AsyncSession = Depends(get_db)):
+    query = select(Chat).filter(Chat.id == chat_id)
+    result = await db.execute(query)
+    return jsonable_encoder(result.scalar())
+
+
+@app.delete('/chat/{chat_id}')
+async def get_chats(chat_id: str, db: AsyncSession = Depends(get_db)):
+    query = delete(Chat).filter(Chat.id == chat_id)
+    result = await db.execute(query)
+    await db.commit()
+    return {}
 
 @app.get('/config')
 async def get_config(client_id: str):
@@ -83,8 +98,9 @@ async def set_config(payload: SessionConfig, client_id: str):
     return session.config
 
 
+@app.websocket("/ws/{chat_id}")
 @app.websocket("/ws")
-async def websocket_input_endpoint(websocket: WebSocket):
+async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db: AsyncSession = Depends(get_db)):
     global session
     await websocket.accept()
 
@@ -93,9 +109,11 @@ async def websocket_input_endpoint(websocket: WebSocket):
     session = Session(
         str(uuid4()),
         get_default_config(),
-        message_history=[]
+        db
     )
     session.client_socket = websocket
+    if chat_id is not None:
+        await session.load_chat(chat_id)
 
     coordinator = None
     try:
@@ -139,6 +157,7 @@ async def websocket_input_endpoint(websocket: WebSocket):
 
             elif data['event'] == 'speech_toggle':
                 session.speech_enabled = data['value']
+                logger.warning(f'Speech {session.speech_enabled}')
 
 
     except starlette.websockets.WebSocketDisconnect:

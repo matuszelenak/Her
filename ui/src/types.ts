@@ -46,4 +46,6 @@ export type WebsocketEvent = {
 } | {
     type: 'speech'
     samples: string
+} | {
+    type: 'new_chat'
 }
