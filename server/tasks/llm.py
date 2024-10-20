@@ -19,10 +19,13 @@ tools = {
 
 async def llm_query_task(session: Session, prompt: str):
     try:
-        session.message_history.append({
-            'role': 'user',
-            'content': prompt
-        })
+
+        await session.append_message(
+            {
+                'role': 'user',
+                'content': prompt
+            }
+        )
 
         client = AsyncClient(OLLAMA_API_URL)
 
@@ -46,11 +49,8 @@ async def llm_query_task(session: Session, prompt: str):
                         messages=[{
                             'role': 'system',
                             'content': session.config.ollama.system_prompt
-                        }] + session.message_history,
+                        }] + session.chat.messages,
                         stream=True,
-                        # tools=[
-                        #     get_ip_address_def
-                        # ],
                         options=dict(
                             num_ctx=session.config.ollama.ctx_length,
                             repeat_penalty=session.config.ollama.repeat_penalty,
@@ -76,12 +76,12 @@ async def llm_query_task(session: Session, prompt: str):
 
             if len(tool_answers) > 0:
                 for answer in tool_answers:
-                    session.message_history.append({
+                    await session.append_message({
                         'role': 'tool',
                         'content': str(answer)
                     })
             else:
-                session.message_history.append({
+                await session.append_message({
                     'role': 'assistant',
                     'content': ''.join(printable_response)
                 })
