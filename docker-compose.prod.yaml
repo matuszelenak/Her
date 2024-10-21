@@ -1,0 +1,32 @@
+services:
+  server:
+    container_name: ai-girlfriend-server
+    restart: unless-stopped
+    depends_on:
+      - database
+    env_file:
+      - .env
+    image: ghcr.io/matuszelenak/ai-girlfriend-server:latest
+    ports:
+      - "8069:8000"
+
+  ui:
+    container_name: ai-girlfriend-ui
+    restart: unless-stopped
+    image: ghcr.io/matuszelenak/ai-girlfriend-ui:latest
+    depends_on:
+      - server
+    ports:
+      - "5069:80"
+
+  database:
+    container_name: ai-girlfriend-database
+    restart: unless-stopped
+    image: postgres:14.3
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    env_file:
+      - .env
+
+volumes:
+  postgres-data:

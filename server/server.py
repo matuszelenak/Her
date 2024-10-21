@@ -65,9 +65,8 @@ async def get_chats(db: AsyncSession = Depends(get_db)):
 
     result = await db.execute(query)
     result = result.scalars()
-    result = list(result)
 
-    return jsonable_encoder(result)
+    return jsonable_encoder(list(result))
 
 
 @app.get('/chat/{chat_id}')
@@ -80,7 +79,7 @@ async def get_chats(chat_id: str, db: AsyncSession = Depends(get_db)):
 @app.delete('/chat/{chat_id}')
 async def get_chats(chat_id: str, db: AsyncSession = Depends(get_db)):
     query = delete(Chat).filter(Chat.id == chat_id)
-    result = await db.execute(query)
+    await db.execute(query)
     await db.commit()
     return {}
 
