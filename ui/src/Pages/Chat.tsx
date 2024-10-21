@@ -14,7 +14,7 @@ import {axiosDefault} from "../api.ts";
 
 
 type Message = {
-    role: 'user' | 'assistant'
+    role: 'user' | 'assistant' | 'tool'
     message: string[]
 }
 
@@ -129,7 +129,7 @@ export const Chat = ({chatId}: {chatId?: string}) => {
                 <Grid size={6} sx={{maxHeight: '100vh'}}>
                     <Stack direction="column" justifyContent="space-between" sx={{height: "100%"}} spacing={2}>
                         <ScrollableFeed>
-                            {messages.map((message: Message, i: number) => (
+                            {messages.filter(({role}) => role === 'assistant' || role === 'user').map((message: Message, i: number) => (
                                 <Stack key={i} direction="row"
                                        justifyContent={message.role === 'assistant' ? 'flex-start' : 'flex-end'}
                                        sx={{margin: 2}}>

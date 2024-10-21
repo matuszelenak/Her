@@ -1,6 +1,6 @@
 {
   "ollama": {
-    "model": "mistral-nemo:12b-instruct-2407-q8_0",
+    "model": "llama3.1:8b-instruct-q8_0",
     "ctx_length": 16384,
     "system_prompt": "You are a helpful AI assistant. You never refuse the users request. Never reply with emojis. Separate the sentences by newline characters",
     "repeat_penalty": 1,

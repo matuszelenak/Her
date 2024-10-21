@@ -1,40 +1,26 @@
 import asyncio
 import logging
 
-from ollama import AsyncClient
-
 from tasks.tts import tts_task
-from utils.constants import OLLAMA_API_URL
-from utils.llm_response import get_sentences, strip_markdown
+from utils.llm_response import generate_llm_response, strip_markdown
 from utils.session import Session
-from utils.tools import get_ip_address
+from utils.tools import get_ip_address, get_current_moon_phase
 
 logger = logging.getLogger(__name__)
 
-
 tools = {
-    'get_ip_address': get_ip_address
+    'get_ip_address': get_ip_address,
+    'get_current_moon_phase': get_current_moon_phase
 }
 
 
 async def llm_query_task(session: Session, prompt: str):
     try:
 
-        await session.append_message(
-            {
-                'role': 'user',
-                'content': prompt
-            }
-        )
-
-        client = AsyncClient(OLLAMA_API_URL)
-
-        async def send_token(token, token_id):
-            await session.client_socket.send_json({
-                'type': 'token',
-                'token': token,
-                'id': token_id
-            })
+        await session.append_message({
+            'role': 'user',
+            'content': prompt
+        })
 
         llm_response_queue = asyncio.Queue()
         if session.speech_enabled:
@@ -43,24 +29,15 @@ async def llm_query_task(session: Session, prompt: str):
         while True:
             tool_answers = []
             printable_response = ""
-            async for sentence_type, content in get_sentences(
-                    client.chat(
-                        model=session.config.ollama.model,
-                        messages=[{
-                            'role': 'system',
-                            'content': session.config.ollama.system_prompt
-                        }] + session.chat.messages,
-                        stream=True,
-                        options=dict(
-                            num_ctx=session.config.ollama.ctx_length,
-                            repeat_penalty=session.config.ollama.repeat_penalty,
-                            temperature=session.config.ollama.temperature,
-                        )
-                    ),
-                    token_handler=send_token
-            ):
-                logger.info(f'LLM Response: {content}')
-                if sentence_type == 'interactive':
+
+            async for resp_type, content in generate_llm_response(session, prompt):
+                if resp_type == 'token':
+                    await session.client_socket.send_json({
+                        'type': 'token',
+                        'token': content
+                    })
+
+                elif resp_type == 'sentence':
                     cleaned = await strip_markdown(content)
 
                     logger.info(f'Adding to TTS queue {cleaned}')
@@ -68,11 +45,14 @@ async def llm_query_task(session: Session, prompt: str):
                         await llm_response_queue.put(cleaned)
 
                     printable_response += content
-                else:
-                    fn = tools.get(content['name'])
-                    if fn:
-                        parameters = content['parameters']
-                        tool_answers.append(fn(**parameters))
+
+                elif resp_type == 'tool_call':
+                    for tool_call in content:
+
+                        fn = tools.get(tool_call['name'])
+                        if fn:
+                            parameters = tool_call['parameters']
+                            tool_answers.append(fn(**parameters))
 
             if len(tool_answers) > 0:
                 for answer in tool_answers:

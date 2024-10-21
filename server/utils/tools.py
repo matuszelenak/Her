@@ -29,9 +29,14 @@ get_current_moon_phase_def = {
 }
 
 
-tool_call_regex = re.compile(r'\{"name": "\w+", "parameters": \{.*}}')
+tool_call_regex_llama = re.compile(r'\{"name": "\w+", "parameters": \{.*}}')
+tool_call_regex_mistral = re.compile(r'\[TOOL_CALLS].*')
 
 
 def get_ip_address():
     resp = requests.get('https://icanhazip.com')
     return resp.content.decode('utf-8').strip()
+
+
+def get_current_moon_phase():
+    return 'It is a full moon'
