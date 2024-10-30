@@ -63,10 +63,10 @@ async def generate_llm_response(session: Session, prompt: str):
                 repeat_penalty=session.config.ollama.repeat_penalty,
                 temperature=session.config.ollama.temperature,
             ),
-            tools=[
-                get_ip_address_def,
-                get_current_moon_phase_def
-            ],
+            # tools=[
+            #     get_ip_address_def,
+            #     get_current_moon_phase_def
+            # ],
     ):
         msg = part['message']['content']
         llm_response.append(msg)

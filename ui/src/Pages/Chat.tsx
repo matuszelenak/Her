@@ -1,7 +1,7 @@
 import useWebSocket from "react-use-websocket";
 import {useAudioPlayer} from "../utils/audioPlayer.ts";
 import Grid from "@mui/material/Grid2";
-import {Button, Paper, Slider, Stack, TextField, Typography} from "@mui/material";
+import {Button, Paper, Stack, TextField, Typography} from "@mui/material";
 import {useEffect, useState} from "react";
 import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
@@ -11,6 +11,7 @@ import {Token, WebsocketEvent} from "../types.ts";
 import {ChatList} from "../Components/ChatList.tsx";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {axiosDefault} from "../api.ts";
+import {DependencyToolbar} from "../Components/DependencyToolbar.tsx";
 
 
 type Message = {
@@ -19,8 +20,9 @@ type Message = {
 }
 
 
-export const Chat = ({chatId}: {chatId?: string}) => {
+export const Chat = ({chatId}: { chatId?: string }) => {
     const queryClient = useQueryClient()
+    const [sessionId, setSessionId] = useState<string | null>(null)
     const [messages, setMessages] = useState<Message[]>([])
     const [userMessage, setUserMessage] = useState("")
     const [agentMessage, setAgentMessage] = useState<Array<Token>>([])
@@ -52,6 +54,10 @@ export const Chat = ({chatId}: {chatId?: string}) => {
             onMessage: (event: WebSocketEventMap['message']) => {
                 const message = JSON.parse(event.data) as WebsocketEvent
 
+                if (message.type == 'session_init') {
+                    setSessionId(message.id)
+                }
+
                 if (message.type == 'speech') {
                     const audioData = new Float32Array(base64ToArrayBuffer(message.samples))
                     feeder(audioData)
@@ -74,14 +80,18 @@ export const Chat = ({chatId}: {chatId?: string}) => {
                 }
             },
             reconnectAttempts: 1000,
-            reconnectInterval: 2000
+            reconnectInterval: 2000,
+            share: true
         }
     );
 
     useEffect(() => {
         if (agentMessage.length > 0 && agentMessage[agentMessage.length - 1].done) {
             setMessages((prevState: Message[]) => {
-                return [...prevState, {role: 'assistant', message: agentMessage.map(token => token.message.content.replaceAll('\n', '\r\n'))}]
+                return [...prevState, {
+                    role: 'assistant',
+                    message: agentMessage.map(token => token.message.content.replaceAll('\n', '\r\n'))
+                }]
             })
             setAgentMessage((_) => [])
         }
@@ -148,7 +158,7 @@ export const Chat = ({chatId}: {chatId?: string}) => {
                                     <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                         <Typography>
                                             <Markdown>
-                                                {userMessage}
+                                                {userMessage.replaceAll('\n', '\r\n')}
                                             </Markdown>
                                         </Typography>
                                     </Paper>
@@ -169,17 +179,20 @@ export const Chat = ({chatId}: {chatId?: string}) => {
                         <Stack direction="row" spacing={1} justifyContent="space-between" padding={2}>
                             <TextField
                                 fullWidth
+                                multiline
                                 variant="outlined"
                                 size="medium"
                                 value={textInputPrompt}
                                 onChange={(e) => setTextInputPrompt(e.target.value)}
                                 onKeyDown={(e) => {
                                     if (e.keyCode === 13) {
-                                        sendJsonMessage({
-                                            event: 'text_prompt',
-                                            prompt: textInputPrompt
-                                        })
-                                        setTextInputPrompt("")
+                                        if (!e.shiftKey) {
+                                            sendJsonMessage({
+                                                event: 'text_prompt',
+                                                prompt: textInputPrompt
+                                            })
+                                            setTextInputPrompt("")
+                                        }
                                     }
                                 }}
                             />
@@ -195,42 +208,30 @@ export const Chat = ({chatId}: {chatId?: string}) => {
                         </Stack>
                     </Stack>
                 </Grid>
-                <Grid size={3}>
-                    <Button variant="outlined" onClick={() => {
-                        vad.toggle()
-                    }}>
-                        { vad.listening ? "Stop listening" : "Start listening" }
-                    </Button>
+                <Grid size={3} sx={{maxHeight: '100vh'}}>
+                    {/*<Slider*/}
+                    {/*    track={false}*/}
+                    {/*    min={0}*/}
+                    {/*    max={262144}*/}
+                    {/*    value={consumerCursor}*/}
+                    {/*/>*/}
+                    {/*<Slider*/}
+                    {/*    track={false}*/}
+                    {/*    min={0}*/}
+                    {/*    max={262144}*/}
+                    {/*    value={producerCursor}*/}
+                    {/*/>*/}
 
-                    <Button variant="outlined" onClick={() => {
-                        sendJsonMessage({
-                            event: 'speech_toggle',
-                            value: !speechEnabled
-                        })
-                        setSpeechEnabled((prevState) => !prevState)
-                    }}>
-                        { speechEnabled ? "Disable speech" : "Enable speech" }
-                    </Button>
-                    <Slider
-                        min={200}
-                        max={10000}
-                        step={250}
-                        value={speechConfirmDelay}
-                        onChange={(_: Event, newValue: number | number[]) => setSpeechConfirmDelay(newValue as number)}
-                    />
-                    {/*<ConfigForm/>*/}
-                    <Slider
-                        track={false}
-                        min={0}
-                        max={262144}
-                        value={consumerCursor}
-                    />
-                    <Slider
-                        track={false}
-                        min={0}
-                        max={262144}
-                        value={producerCursor}
-                    />
+                    {sessionId && <DependencyToolbar
+                        sessionId={sessionId}
+                        chatId={chatId}
+                        speechConfirmDelay={speechConfirmDelay}
+                        setSpeechConfirmDelay={setSpeechConfirmDelay}
+                        speechEnabled={speechEnabled}
+                        setSpeechEnabled={setSpeechEnabled}
+                        vad={vad}
+                    />}
+
                 </Grid>
             </Grid>
         </>

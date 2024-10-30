@@ -8,8 +8,12 @@ export type Configuration = {
     },
     xtts: {
         voice: string
-        language: 'en'
+        language: 'en' | 'cs'
     },
+    whisper: {
+        language: 'en' | 'cs'
+        model: string
+    }
     app: {
         prevalidate_prompt: boolean
         speech_submit_delay_ms: number
@@ -37,6 +41,13 @@ export type Token = {
 }
 
 
+export type DependencyStatus = {
+    whisper: boolean
+    xtts: boolean
+    ollama: string[] | null
+}
+
+
 export type WebsocketEvent = {
     type: 'token'
     token: Token
@@ -48,4 +59,10 @@ export type WebsocketEvent = {
     samples: string
 } | {
     type: 'new_chat'
+} | {
+    type: 'session_init'
+    id: string
+} | {
+    type: 'dependency_status'
+    status: DependencyStatus
 }

@@ -43,7 +43,7 @@ export const ChatList = () => {
                 <Typography variant="h5">New chat</Typography>
             </NavLink>
             {chats.map((chat) => (
-                <Stack direction="row" alignContent="center">
+                <Stack direction="row" alignContent="center" key={chat.id}>
                     <NavLink
                         style={{textDecoration: 'none', margin: 0, padding: 0}}
                         key={chat.id}

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class WhisperConfig(BaseModel):
     model: Literal['medium.en', 'small.en', 'large-v3']
+    language: Literal['en', 'cs']
 
 
 class OllamaConfig(BaseModel):
@@ -17,7 +18,7 @@ class OllamaConfig(BaseModel):
 
 class XTTSConfig(BaseModel):
     voice: str
-    language: Literal['en', 'sk']
+    language: Literal['en', 'cs']
 
 
 class AppConfig(BaseModel):
