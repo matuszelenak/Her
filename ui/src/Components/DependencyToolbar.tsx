@@ -1,13 +1,13 @@
 import {DependencyStatus, OllamaModel, WebsocketEvent} from "../types.ts";
 import {
     Box,
-    Button,
+    Button, Checkbox,
     CircularProgress,
     FormControl,
     Grid,
     Input,
-    InputLabel,
-    MenuItem,
+    InputLabel, ListItemText,
+    MenuItem, OutlinedInput,
     Paper,
     Select,
     Slider,
@@ -46,6 +46,7 @@ export const DependencyToolbar = ({
     const [repeatPenalty, rtRepeatPenalty, setRTRepeatPenalty] = useDelayedInput<number | null>(null, 200)
     const [ctxLength, rtCtxLength, setRTCtxLength] = useDelayedInput<number | null>(null, 200)
     const [sysPrompt, rtSystemPrompt, setRTSystemPrompt] = useDelayedInput<string | null>(null, 200)
+    const [tools, setTools] = useState<string[]>([])
     const [voice, setVoice] = useState("aloy.wav")
     const [xttsLang, setXttsLang] = useState("en")
 
@@ -142,7 +143,15 @@ export const DependencyToolbar = ({
         }).then(({data}) => data.voices as string[]),
     })
 
-    if (!models || !voices) {
+    const {data: toolChoices} = useQuery({
+        queryKey: ['tools'],
+        queryFn: async () => axiosDefault({
+            url: '/tools',
+            method: 'get'
+        }).then(({data}) => data as string[]),
+    })
+
+    if (!models || !voices || toolChoices == undefined) {
         return <CircularProgress/>
     }
 
@@ -304,6 +313,33 @@ export const DependencyToolbar = ({
                             </Grid>
                         </Grid>
                     </Box>
+
+                    <FormControl>
+                        <InputLabel id="tools-label">Tools</InputLabel>
+                        <Select
+                            labelId="tools-label"
+                            id="tools-checkbox"
+                            multiple
+                            value={tools}
+                            onChange={(e) => {
+                                setTools(e.target.value as string[])
+                                sendJsonMessage({
+                                    event: 'config',
+                                    field: 'ollama.tools',
+                                    value: e.target.value
+                                })
+                            }}
+                            input={<OutlinedInput label="Tools" />}
+                            renderValue={(selected) => selected.join(', ')}
+                        >
+                            {toolChoices.map((name) => (
+                                <MenuItem key={name} value={name}>
+                                    <Checkbox checked={tools.includes(name)} />
+                                    <ListItemText primary={name} />
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
                 </Stack>
             </Paper>
 

@@ -22,14 +22,13 @@ type Message = {
 
 export const Chat = ({chatId}: { chatId?: string }) => {
     const queryClient = useQueryClient()
-    const [sessionId, setSessionId] = useState<string | null>(null)
     const [messages, setMessages] = useState<Message[]>([])
     const [userMessage, setUserMessage] = useState("")
     const [agentMessage, setAgentMessage] = useState<Array<Token>>([])
 
     const [speechEnabled, setSpeechEnabled] = useState(false)
 
-    const {feeder, consumerCursor, producerCursor, freeSpace} = useAudioPlayer(speechEnabled)
+    const {feeder, freeSpace} = useAudioPlayer(speechEnabled)
 
     useQuery({
         queryKey: ['chat', chatId],
@@ -53,10 +52,6 @@ export const Chat = ({chatId}: { chatId?: string }) => {
         {
             onMessage: (event: WebSocketEventMap['message']) => {
                 const message = JSON.parse(event.data) as WebsocketEvent
-
-                if (message.type == 'session_init') {
-                    setSessionId(message.id)
-                }
 
                 if (message.type == 'speech') {
                     const audioData = new Float32Array(base64ToArrayBuffer(message.samples))
@@ -215,28 +210,14 @@ export const Chat = ({chatId}: { chatId?: string }) => {
                     </Stack>
                 </Grid>
                 <Grid size={3} sx={{maxHeight: '100vh'}}>
-                    {/*<Slider*/}
-                    {/*    track={false}*/}
-                    {/*    min={0}*/}
-                    {/*    max={262144}*/}
-                    {/*    value={consumerCursor}*/}
-                    {/*/>*/}
-                    {/*<Slider*/}
-                    {/*    track={false}*/}
-                    {/*    min={0}*/}
-                    {/*    max={262144}*/}
-                    {/*    value={producerCursor}*/}
-                    {/*/>*/}
-
-                    {sessionId && <DependencyToolbar
+                    <DependencyToolbar
                         chatId={chatId}
                         speechConfirmDelay={speechConfirmDelay}
                         setSpeechConfirmDelay={setSpeechConfirmDelay}
                         speechEnabled={speechEnabled}
                         setSpeechEnabled={setSpeechEnabled}
                         vad={vad}
-                    />}
-
+                    />
                 </Grid>
             </Grid>
         </>

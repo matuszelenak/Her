@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, List
 
 from pydantic import BaseModel
 
@@ -14,6 +14,7 @@ class OllamaConfig(BaseModel):
     system_prompt: str
     repeat_penalty: float
     temperature: float
+    tools: List[str]
 
 
 class XTTSConfig(BaseModel):
@@ -36,7 +37,6 @@ class SessionConfig(BaseModel):
 def get_default_config() -> SessionConfig:
     with open('./config.json', 'r') as f:
         return SessionConfig.model_validate_json(f.read())
-
 
 
 def set_config_from_event(config, field, value):

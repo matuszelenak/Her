@@ -3,7 +3,7 @@ import json
 import logging
 import subprocess
 from datetime import datetime
-from typing import Dict
+from typing import Any, Dict
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -12,7 +12,7 @@ import requests
 import starlette
 from fastapi import FastAPI, WebSocket, Depends
 from fastapi.encoders import jsonable_encoder
-from ollama import AsyncClient, Client
+from ollama import AsyncClient, Client, ResponseError
 from sqlalchemy import select, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
@@ -29,7 +29,6 @@ from utils.validation import should_agent_respond
 app = FastAPI()
 
 logger = logging.getLogger(__name__)
-sessions: Dict[str, Session] = {}
 
 
 @app.get('/models')
@@ -70,9 +69,14 @@ async def get_chats(chat_id: str, db: AsyncSession = Depends(get_db)):
     return {}
 
 
+@app.get('/tools')
+async def get_tools():
+    return ['get_ip_address_def', 'get_current_moon_phase']
+
+
 async def services_monitor_notify_task(websocket: WebSocket):
     while True:
-        statuses = {}
+        statuses: Dict[str, Any] = {}
 
         try:
             whisper_parsed_url = urlparse(WHISPER_API_URL)
@@ -91,7 +95,7 @@ async def services_monitor_notify_task(websocket: WebSocket):
              ollama_status = Client(OLLAMA_API_URL).ps()
 
              statuses['ollama'] = [model['name'] for model in ollama_status['models']]
-        except:
+        except ResponseError:
             statuses['ollama'] = None
 
         await websocket.send_json({
@@ -105,29 +109,20 @@ async def services_monitor_notify_task(websocket: WebSocket):
 @app.websocket("/ws/{chat_id}")
 @app.websocket("/ws")
 async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db: AsyncSession = Depends(get_db)):
-    global sessions
     await websocket.accept()
 
     logger.info(f"New client connected")
 
     session_id = str(uuid4())
-
     session = Session(
         session_id,
         get_default_config(),
         db
     )
-    sessions[session_id] = session
-
-    await websocket.send_json({
-        'type': 'session_init',
-        'id': session_id
-    })
 
     session.client_socket = websocket
     if chat_id is not None:
         await session.load_chat(chat_id)
-
 
     status_notify_task = None
     try:
@@ -208,5 +203,3 @@ async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db
 
         logger.warning(f'Terminating client')
         session.terminate()
-
-        del sessions[session_id]

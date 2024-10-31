@@ -6,9 +6,9 @@ from bs4 import BeautifulSoup
 from markdown import markdown
 from ollama import AsyncClient
 
+import utils.tools as tools
 from utils.constants import OLLAMA_API_URL
 from utils.session import Session
-from utils.tools import get_ip_address_def, get_current_moon_phase_def
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +63,9 @@ async def generate_llm_response(session: Session, prompt: str):
                 repeat_penalty=session.config.ollama.repeat_penalty,
                 temperature=session.config.ollama.temperature,
             ),
-            # tools=[
-            #     get_ip_address_def,
-            #     get_current_moon_phase_def
-            # ],
+            tools=[
+                getattr(tools, tool) for tool in session.config.ollama.tools
+            ],
     ):
         msg = part['message']['content']
         llm_response.append(msg)

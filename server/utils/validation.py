@@ -51,7 +51,7 @@ async def should_agent_respond(session):
         model='qwen2.5:1.5b-instruct-q8_0',
         messages=[{
             'role': 'user',
-            'content': f'Output YES if the following text is addressing a person called Aloy and NO if it is not {session.prompt}'
+            'content': f'Output YES if the following text is addressing a person called Aloy and NO if it is not. The text is: {session.prompt}'
         }],
         options=dict(
             temperature=0,

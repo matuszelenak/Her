@@ -60,9 +60,6 @@ export type WebsocketEvent = {
 } | {
     type: 'new_chat'
 } | {
-    type: 'session_init'
-    id: string
-} | {
     type: 'dependency_status'
     status: DependencyStatus
 } | {
