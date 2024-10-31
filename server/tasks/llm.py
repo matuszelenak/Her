@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime
 
 from tasks.tts import tts_task
 from utils.llm_response import generate_llm_response, strip_markdown
@@ -66,6 +67,8 @@ async def llm_query_task(session: Session, prompt: str):
                     'content': ''.join(printable_response)
                 })
                 break
+
+        session.last_interaction = datetime.now()
 
         if session.speech_enabled:
             await llm_response_queue.put(None)

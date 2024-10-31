@@ -74,6 +74,12 @@ export const Chat = ({chatId}: { chatId?: string }) => {
                 if (message.type == 'stt_output') {
                     setUserMessage(message.text)
                 }
+                if (message.type == 'stt_output_invalidation') {
+                    if (userMessage !== "") {
+                        setMessages((prevState: Message[]) => [...prevState, {role: 'user', message: [`~~${userMessage}~~`]}])
+                    }
+                    setUserMessage("")
+                }
 
                 if (message.type == 'new_chat') {
                     queryClient.invalidateQueries({queryKey: ['chat_list']})
@@ -105,7 +111,7 @@ export const Chat = ({chatId}: { chatId?: string }) => {
     const [speechConfirmDelay, setSpeechConfirmDelay] = useState(2000)
 
     const vad = useMicVAD({
-        startOnLoad: false,
+        startOnLoad: true,
         onSpeechFrames: (audio: Float32Array) => {
             sendJsonMessage({
                 'event': 'samples',
@@ -223,7 +229,6 @@ export const Chat = ({chatId}: { chatId?: string }) => {
                     {/*/>*/}
 
                     {sessionId && <DependencyToolbar
-                        sessionId={sessionId}
                         chatId={chatId}
                         speechConfirmDelay={speechConfirmDelay}
                         setSpeechConfirmDelay={setSpeechConfirmDelay}

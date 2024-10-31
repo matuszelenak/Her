@@ -65,4 +65,9 @@ export type WebsocketEvent = {
 } | {
     type: 'dependency_status'
     status: DependencyStatus
+} | {
+    type: 'stt_output_invalidation'
+} | {
+    type: 'config'
+    config: Configuration
 }

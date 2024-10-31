@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import logging
+from datetime import datetime
 from urllib.parse import urlencode
 
 import httpx
@@ -59,6 +60,7 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
                                             'type': 'speech',
                                             'samples': b64_buffer
                                         })
+                                        session.last_interaction = datetime.now()
                                         await asyncio.sleep(0.13)
                                         break
 

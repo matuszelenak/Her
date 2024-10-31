@@ -36,3 +36,13 @@ class SessionConfig(BaseModel):
 def get_default_config() -> SessionConfig:
     with open('./config.json', 'r') as f:
         return SessionConfig.model_validate_json(f.read())
+
+
+
+def set_config_from_event(config, field, value):
+    curr = config
+    spl = field.split('.')
+    for part in spl[:-1]:
+        curr = getattr(curr, part)
+
+    setattr(curr, spl[-1], value)

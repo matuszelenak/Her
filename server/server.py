@@ -1,15 +1,16 @@
 import asyncio
+import json
 import logging
 import subprocess
-from datetime import datetime, timedelta
-from typing import Optional, Dict
+from datetime import datetime
+from typing import Dict
 from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
 import requests
 import starlette
-from fastapi import FastAPI, WebSocket, Depends, HTTPException
+from fastapi import FastAPI, WebSocket, Depends
 from fastapi.encoders import jsonable_encoder
 from ollama import AsyncClient, Client
 from sqlalchemy import select, desc, delete
@@ -20,9 +21,10 @@ from db.models import Chat
 from db.session import get_db
 from tasks.coordination import trigger_llm
 from tasks.stt import stt_sender
-from utils.configuration import SessionConfig, get_default_config
+from utils.configuration import get_default_config, set_config_from_event
 from utils.constants import OLLAMA_API_URL, XTTS2_API_URL, WHISPER_API_URL
 from utils.session import Session
+from utils.validation import should_agent_respond
 
 app = FastAPI()
 
@@ -54,7 +56,7 @@ async def get_chats(db: AsyncSession = Depends(get_db)):
 
 
 @app.get('/chat/{chat_id}')
-async def get_chats(chat_id: str, db: AsyncSession = Depends(get_db)):
+async def get_chat(chat_id: str, db: AsyncSession = Depends(get_db)):
     query = select(Chat).filter(Chat.id == chat_id)
     result = await db.execute(query)
     return jsonable_encoder(result.scalar())
@@ -66,28 +68,6 @@ async def get_chats(chat_id: str, db: AsyncSession = Depends(get_db)):
     await db.execute(query)
     await db.commit()
     return {}
-
-@app.get('/config')
-async def get_config(session_id: str):
-    global sessions
-
-    if session_id not in sessions:
-        return HTTPException(status_code=404)
-
-    return sessions[session_id].config
-
-
-@app.post('/config')
-async def set_config(payload: SessionConfig, session_id: str):
-    global sessions
-
-    if session_id not in sessions:
-        return HTTPException(status_code=404)
-
-
-    sessions[session_id].config = payload
-
-    return sessions[session_id].config
 
 
 async def services_monitor_notify_task(websocket: WebSocket):
@@ -178,7 +158,17 @@ async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db
 
             elif data['event'] == 'speech_prompt_end':
                 if session.prompt:
-                    trigger_llm(session, received_speech_queue)
+                    warrants_response = await should_agent_respond(session)
+
+                    if warrants_response:
+                        trigger_llm(session, received_speech_queue)
+                    else:
+                        await session.client_socket.send_json({
+                            'type': 'stt_output_invalidation'
+                        })
+
+                        session.stt_task.cancel()
+                        session.stt_task = asyncio.create_task(stt_sender(session, received_speech_queue))
 
             elif data['event'] == 'text_prompt':
                 session.prompt = f'{session.prompt or ""}{data["prompt"]}'
@@ -193,6 +183,16 @@ async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db
             elif data['event'] == 'speech_toggle':
                 session.speech_enabled = data['value']
                 logger.warning(f'Speech {session.speech_enabled}')
+
+            elif data['event'] == 'config_request':
+                await websocket.send_json({
+                    'type': 'config',
+                    'config': json.loads(session.config.model_dump_json())
+                })
+
+            elif data['event'] == 'config':
+                set_config_from_event(session.config, data['field'], data['value'])
+                logger.warning(f'Successfully set {data['field']} to {data['value']}')
 
 
     except starlette.websockets.WebSocketDisconnect:

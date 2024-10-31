@@ -34,6 +34,8 @@ class Session:
 
     speech_enabled: bool = True
 
+    last_interaction: Optional[datetime.datetime] = None
+
     def terminate(self):
         if self.stt_task:
             self.stt_task.cancel()
@@ -65,7 +67,10 @@ class Session:
                 'type': 'new_chat'
             })
 
-        self.chat.messages.append(message | {'time': datetime.datetime.now().timestamp()})
+        self.chat.messages.append(message | {
+            'time': datetime.datetime.now().timestamp(),
+            'model': self.config.ollama.model
+        })
         flag_modified(self.chat, 'messages')
         await self.db.commit()
         await self.db.refresh(self.chat)
