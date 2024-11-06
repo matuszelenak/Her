@@ -12,6 +12,7 @@ import {ChatList} from "../Components/ChatList.tsx";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {axiosDefault} from "../api.ts";
 import {DependencyToolbar} from "../Components/DependencyToolbar.tsx";
+import remarkGfm from "remark-gfm";
 
 
 type Message = {
@@ -145,11 +146,9 @@ export const Chat = ({chatId}: { chatId?: string }) => {
                                        justifyContent={message.role === 'assistant' ? 'flex-start' : 'flex-end'}
                                        sx={{margin: 2}}>
                                     <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
-                                        <Typography>
-                                            <Markdown>
+                                            <Markdown remarkPlugins={[remarkGfm]}>
                                                 {message.message.join('')}
                                             </Markdown>
-                                        </Typography>
 
                                     </Paper>
                                 </Stack>
@@ -157,11 +156,9 @@ export const Chat = ({chatId}: { chatId?: string }) => {
                             {userMessage !== "" && (
                                 <Stack direction="row" justifyContent={'flex-end'} sx={{margin: 2}}>
                                     <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
-                                        <Typography>
-                                            <Markdown>
+                                            <Markdown remarkPlugins={[remarkGfm]}>
                                                 {userMessage.replaceAll('\n', '\r\n')}
                                             </Markdown>
-                                        </Typography>
                                     </Paper>
                                 </Stack>
                             )}
@@ -169,7 +166,7 @@ export const Chat = ({chatId}: { chatId?: string }) => {
                                 <Stack direction="row" justifyContent={'flex-start'} sx={{margin: 2}}>
                                     <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                         <Typography>
-                                            <Markdown>
+                                            <Markdown remarkPlugins={[remarkGfm]}>
                                                 {agentMessage.map(token => token.message.content.replaceAll('\n', '\r\n')).join('')}
                                             </Markdown>
                                         </Typography>

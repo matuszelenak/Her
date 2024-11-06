@@ -2,15 +2,15 @@ import asyncio
 import datetime
 import logging
 from dataclasses import dataclass
-from typing import Optional, Tuple, Dict, List
+from typing import Optional, Tuple
+from uuid import uuid4
 
-from sqlalchemy import insert, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 from starlette.websockets import WebSocket
 
 from db.models import Chat
-from utils.configuration import SessionConfig, get_default_config
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +18,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Session:
     id: str
-    config: SessionConfig
     db: AsyncSession
+    chat: Chat
     client_socket: WebSocket = None
     stt_task: Optional[asyncio.Task] = None
     llm_task: Optional[asyncio.Task] = None
     tts_task: Optional[asyncio.Task] = None
-
-    chat: Chat = None
 
     user_speaking_status: Tuple[bool, datetime.datetime] = (False, None)
     prompt: Optional[str] = None
@@ -49,18 +47,15 @@ class Session:
         self.chat = result
 
     async def append_message(self, message):
-        if self.chat is None:
-            chat = Chat(
-                messages=[],
-                header=message['content'][:30],
-                started_at=datetime.datetime.now()
-            )
+        if self.chat.id is None:
+            self.chat.id = uuid4()
+            self.chat.header = message['content'][:30]
+            self.chat.started_at = datetime.datetime.now()
 
-            self.db.add(chat)
+            self.db.add(self.chat)
             await self.db.commit()
-            await self.db.refresh(chat)
+            await self.db.refresh(self.chat)
 
-            self.chat = chat
             logger.warning(str(self.chat))
 
             await self.client_socket.send_json({
@@ -69,28 +64,22 @@ class Session:
 
         self.chat.messages.append(message | {
             'time': datetime.datetime.now().timestamp(),
-            'model': self.config.ollama.model
+            'model': self.chat.config.ollama.model
         })
         flag_modified(self.chat, 'messages')
         await self.db.commit()
         await self.db.refresh(self.chat)
         logger.warning(str(self.chat))
 
-session_store: Dict[str, Session] = dict()
+    async def set_config_from_event(self, field, value):
+        curr = self.chat.config_db
+        spl = field.split('.')
+        for part in spl[:-1]:
+            curr = curr[part]
 
+        curr[spl[-1]] = value
 
-def get_session(client_id):
-    if client_id not in session_store:
-        logger.warning(f'Creating new session for {client_id}')
-        session_store[client_id] = Session(
-            client_id,
-            get_default_config()
-        )
-
-    return session_store[client_id]
-
-
-def terminate_session(client_id):
-    if client_id in session_store:
-        session_store[client_id].terminate()
-        del session_store[client_id]
+        if self.chat.id is not None:
+            flag_modified(self.chat, 'config_db')
+            await self.db.commit()
+            await self.db.refresh(self.chat)

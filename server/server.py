@@ -3,6 +3,7 @@ import json
 import logging
 import subprocess
 from datetime import datetime
+from traceback import print_stack
 from typing import Any, Dict
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -21,7 +22,7 @@ from db.models import Chat
 from db.session import get_db
 from tasks.coordination import trigger_llm
 from tasks.stt import stt_sender
-from utils.configuration import get_default_config, set_config_from_event
+from utils.configuration import get_previous_or_default_config
 from utils.constants import OLLAMA_API_URL, XTTS2_API_URL, WHISPER_API_URL
 from utils.session import Session
 from utils.validation import should_agent_respond
@@ -114,10 +115,12 @@ async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db
     logger.info(f"New client connected")
 
     session_id = str(uuid4())
+    config = await get_previous_or_default_config(db)
+    chat = Chat(config_db=config)
     session = Session(
         session_id,
-        get_default_config(),
-        db
+        db,
+        chat
     )
 
     session.client_socket = websocket
@@ -182,11 +185,11 @@ async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db
             elif data['event'] == 'config_request':
                 await websocket.send_json({
                     'type': 'config',
-                    'config': json.loads(session.config.model_dump_json())
+                    'config': json.loads(session.chat.config.model_dump_json())
                 })
 
             elif data['event'] == 'config':
-                set_config_from_event(session.config, data['field'], data['value'])
+                await session.set_config_from_event(data['field'], data['value'])
                 logger.warning(f'Successfully set {data['field']} to {data['value']}')
 
 

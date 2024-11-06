@@ -52,19 +52,19 @@ async def generate_llm_response(session: Session, prompt: str):
     llm_response = []
     sentence_buffer = ""
     async for part in await client.chat(
-            model=session.config.ollama.model,
+            model=session.chat.config.ollama.model,
             messages=[{
                 'role': 'system',
-                'content': session.config.ollama.system_prompt
+                'content': session.chat.config.ollama.system_prompt
             }] + session.chat.messages,
             stream=True,
             options=dict(
-                num_ctx=session.config.ollama.ctx_length,
-                repeat_penalty=session.config.ollama.repeat_penalty,
-                temperature=session.config.ollama.temperature,
+                num_ctx=session.chat.config.ollama.ctx_length,
+                repeat_penalty=session.chat.config.ollama.repeat_penalty,
+                temperature=session.chat.config.ollama.temperature,
             ),
             tools=[
-                getattr(tools, tool) for tool in session.config.ollama.tools
+                getattr(tools, tool) for tool in session.chat.config.ollama.tools
             ],
     ):
         msg = part['message']['content']

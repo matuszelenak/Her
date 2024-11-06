@@ -4,7 +4,6 @@ import json
 import logging
 
 import numpy as np
-import scipy
 import websockets
 from sortedcontainers import SortedDict
 
@@ -18,31 +17,27 @@ logger = logging.getLogger(__name__)
 async def stt_sender(session: Session, received_speech_queue: asyncio.Queue):
     receiver_task = None
     try:
-        async for stt_socket in websockets.connect(WHISPER_API_URL):
-            try:
-                await stt_socket.send(json.dumps(
-                    {
-                        "uid": session.id,
-                        "language": "en",
-                        "task": "transcribe",
-                        "model": session.config.whisper.model,
-                        "use_vad": False
-                    }
-                ))
+        async with websockets.connect(WHISPER_API_URL) as stt_socket:
+            await stt_socket.send(json.dumps(
+                {
+                    "uid": session.id,
+                    "language": "en",
+                    "task": "transcribe",
+                    "model": session.chat.config.whisper.model,
+                    "use_vad": False
+                }
+            ))
 
-                receiver_task = asyncio.create_task(stt_receiver(session, stt_socket))
+            receiver_task = asyncio.create_task(stt_receiver(session, stt_socket))
 
-                while True:
-                    samples = await received_speech_queue.get()
-                    samples = base64.b64decode(samples)
-                    # logger.warning(f'Received {len(samples)} samples')
-                    samples = np.frombuffer(samples, dtype=np.float32)
-                    # samples = scipy.signal.resample(samples, round(samples.shape[0] * (16000 / 44100)))
-                    await stt_socket.send(samples.tobytes())
-
-            except websockets.ConnectionClosed:
-                logging.warning('Connection to Whisper closed')
-                continue
+            while True:
+                samples = await received_speech_queue.get()
+                samples = base64.b64decode(samples)
+                # logger.warning(f'Received {len(samples)} samples')
+                samples = np.frombuffer(samples, dtype=np.float32)
+                # samples = scipy.signal.resample(samples, round(samples.shape[0] * (16000 / 44100)))
+                logger.warning(f'Sending {samples.shape} samples')
+                await stt_socket.send(samples.tobytes())
 
     except asyncio.CancelledError:
         logger.warning('STT Task cancelled')
@@ -132,7 +127,7 @@ async def stt_receiver(session: Session, socket):
 
             if last_segment['start'] != previous_start or last_segment['text'] != previous_text:
                 end_ts_to_segment_tree[end_ts] = (start_ts, last_segment['text'])
-                complete = calculate_prefix(start_ts) + last_segment['text']
+                complete = (calculate_prefix(start_ts) + last_segment['text']).strip()
                 # logger.warning(complete)
                 session.prompt = complete
 

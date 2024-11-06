@@ -27,8 +27,8 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
 
             params = {
                 'text': sentence,
-                'voice': session.config.xtts.voice,
-                'language': session.config.xtts.language,
+                'voice': session.chat.config.xtts.voice,
+                'language': session.chat.config.xtts.language,
                 'output_file': 'whatever.wav'
             }
             logger.info(f'Submitting for TTS {sentence}')

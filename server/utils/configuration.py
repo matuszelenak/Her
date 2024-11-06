@@ -1,6 +1,8 @@
 from typing import Literal, List
 
 from pydantic import BaseModel
+from sqlalchemy import select, desc
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class WhisperConfig(BaseModel):
@@ -34,15 +36,12 @@ class SessionConfig(BaseModel):
     app: AppConfig
 
 
-def get_default_config() -> SessionConfig:
+async def get_previous_or_default_config(db: AsyncSession):
+    from db.models import Chat
+    most_recent_chat = (await db.execute(select(Chat).order_by(desc(Chat.started_at)))).scalar()
+
+    if most_recent_chat is not None:
+        return most_recent_chat.config_db
+
     with open('./config.json', 'r') as f:
-        return SessionConfig.model_validate_json(f.read())
-
-
-def set_config_from_event(config, field, value):
-    curr = config
-    spl = field.split('.')
-    for part in spl[:-1]:
-        curr = getattr(curr, part)
-
-    setattr(curr, spl[-1], value)
+        return SessionConfig.model_validate_json(f.read()).model_dump()

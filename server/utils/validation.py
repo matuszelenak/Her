@@ -25,7 +25,7 @@ async def is_prompt_valid(session, prompt, message_history):
     )
     wtf = f'{wtf}\nUSER: {prompt}'
     llm_response = await AsyncClient(OLLAMA_API_URL).chat(
-        model=session.config.ollama.model,
+        model=session.chat.config.ollama.model,
         messages=[
             {
                 'role': 'system',
