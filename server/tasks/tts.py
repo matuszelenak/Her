@@ -29,6 +29,9 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
             if not xtts_status():
                 continue
 
+            if not session.speech_enabled:
+                continue
+
             params = {
                 'text': sentence,
                 'voice': session.chat.config.xtts.voice,

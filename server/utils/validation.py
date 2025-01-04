@@ -42,16 +42,16 @@ async def is_prompt_valid(session, prompt, message_history):
 
 async def should_agent_respond(session):
     if session.last_interaction is not None and (datetime.now() - session.last_interaction) < timedelta(
-            seconds=session.chat.config.app.inactivity_timeout_ms):
+            milliseconds=session.chat.config.app.inactivity_timeout_ms):
         return True
 
     client = AsyncClient(OLLAMA_API_URL)
 
     response = await client.chat(
-        model='qwen2.5:1.5b-instruct-q8_0',
+        model='qwen2.5:0.5b-instruct-q8_0',
         messages=[{
             'role': 'user',
-            'content': f'Output YES if the following text is addressing a person called Aloy and NO if it is not. The text is: {session.prompt}'
+            'content': f'Output YES if the following text is addressed to a person called Aloy and NO if it is not. The text is: {session.prompt}'
         }],
         options=dict(
             temperature=0,
