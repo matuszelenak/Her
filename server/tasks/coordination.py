@@ -2,7 +2,6 @@ import asyncio
 import logging
 
 from tasks.llm import llm_query_task
-from tasks.stt import stt_sender
 from utils.session import Session
 
 logger = logging.getLogger(__name__)
@@ -23,5 +22,3 @@ def trigger_llm(session: Session, received_speech_queue: asyncio.Queue):
     logger.warning(f'Accepted prompt {prompt}')
 
     session.llm_task = asyncio.create_task(llm_query_task(session, prompt))
-    session.stt_task.cancel()
-    session.stt_task = asyncio.create_task(stt_sender(session, received_speech_queue))

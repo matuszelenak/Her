@@ -1,19 +1,14 @@
 import asyncio
 import json
 import logging
-import subprocess
 from datetime import datetime
-from traceback import print_stack
-from typing import Any, Dict
-from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
-import requests
 import starlette
 from fastapi import FastAPI, WebSocket, Depends
 from fastapi.encoders import jsonable_encoder
-from ollama import AsyncClient, Client, ResponseError
+from ollama import AsyncClient
 from sqlalchemy import select, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
@@ -23,18 +18,22 @@ from db.session import get_db
 from tasks.coordination import trigger_llm
 from tasks.stt import stt_sender
 from utils.configuration import get_previous_or_default_config
-from utils.constants import OLLAMA_API_URL, XTTS2_API_URL, WHISPER_API_URL
+from utils.constants import OLLAMA_API_URL, XTTS2_API_URL
+from utils.health import ollama_status, xtts_status, whisper_status
 from utils.session import Session
 from utils.validation import should_agent_respond
 
 app = FastAPI()
 
 logger = logging.getLogger(__name__)
+logger.setLevel('INFO')
 
 
 @app.get('/models')
 async def get_models():
-    return (await AsyncClient(OLLAMA_API_URL).list())['models']
+    models = (await AsyncClient(OLLAMA_API_URL).list())['models']
+
+    return sorted(models, key=lambda m: m['model'])
 
 
 @app.get('/xtts')
@@ -45,6 +44,8 @@ async def get_xtts():
         res['voices'] = sorted(resp.json()['voices'])
 
         return res
+
+
 @app.get('/chats')
 async def get_chats(db: AsyncSession = Depends(get_db)):
     query = select(Chat).options(load_only(Chat.id, Chat.started_at, Chat.header)).order_by(desc('started_at'))
@@ -67,7 +68,7 @@ async def get_chats(chat_id: str, db: AsyncSession = Depends(get_db)):
     query = delete(Chat).filter(Chat.id == chat_id)
     await db.execute(query)
     await db.commit()
-    return {}
+    return {'id': chat_id}
 
 
 @app.get('/tools')
@@ -75,44 +76,24 @@ async def get_tools():
     return ['get_ip_address_def', 'get_current_moon_phase']
 
 
-async def services_monitor_notify_task(websocket: WebSocket):
-    while True:
-        statuses: Dict[str, Any] = {}
-
-        try:
-            whisper_parsed_url = urlparse(WHISPER_API_URL)
-            subprocess.check_output(['nc', '-zv', f'{whisper_parsed_url.hostname}', f'{whisper_parsed_url.port}'], stderr=subprocess.PIPE)
-            statuses['whisper'] = True
-        except subprocess.CalledProcessError:
-            statuses['whisper'] = False
-
-        try:
-            requests.get(f'{XTTS2_API_URL}/api/ready', timeout=100)
-            statuses['xtts'] = True
-        except requests.ConnectionError:
-            statuses['xtts'] = False
-
-        try:
-             ollama_status = Client(OLLAMA_API_URL).ps()
-
-             statuses['ollama'] = [model['name'] for model in ollama_status['models']]
-        except ResponseError:
-            statuses['ollama'] = None
-
-        await websocket.send_json({
-            'type': 'dependency_status',
-            'status': statuses
-        })
-
-        await asyncio.sleep(2)
-
-
-@app.websocket("/ws/{chat_id}")
-@app.websocket("/ws")
-async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db: AsyncSession = Depends(get_db)):
+@app.websocket("/ws/health")
+async def health_endpoint(websocket: WebSocket):
     await websocket.accept()
 
-    logger.info(f"New client connected")
+    while True:
+        await websocket.receive_json()
+        await websocket.send_json({
+            'ollama': ollama_status(),
+            'xtts': xtts_status(),
+            'whisper': whisper_status()
+        })
+
+
+@app.websocket("/ws/chat")
+async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
+    await websocket.accept()
+
+    logger.warning(f"New client connected")
 
     session_id = str(uuid4())
     config = await get_previous_or_default_config(db)
@@ -124,21 +105,26 @@ async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db
     )
 
     session.client_socket = websocket
-    if chat_id is not None:
-        await session.load_chat(chat_id)
 
-    status_notify_task = None
     try:
         received_speech_queue = asyncio.Queue()
 
-        session.stt_task = asyncio.create_task(stt_sender(session, received_speech_queue))
-        status_notify_task = asyncio.create_task(services_monitor_notify_task(websocket))
-
         while True:
             data = await websocket.receive_json()
+            # logger.warning(f'Received ws {data}')
+            if data['event'] == 'load_chat':
+                if data["chat_id"] is not None:
+                    await session.load_chat(data["chat_id"])
+                else:
+                    session.chat = Chat(config_db=config)
+
+                await websocket.send_json({
+                    'type': 'config',
+                    'config': json.loads(session.chat.config.model_dump_json())
+                })
+
             if data['event'] == 'free_space':
                 session.free_samples = data["value"]
-                # logger.warning(f'Free {data["value"]}')
 
             elif data['event'] == 'resp_wait':
                 logger.warning('Throttling!')
@@ -148,11 +134,17 @@ async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db
 
             elif data['event'] == 'samples':
                 session.user_speaking_status = (True, datetime.now())
+                if session.stt_task is None:
+                    session.stt_task = asyncio.create_task(stt_sender(session, received_speech_queue))
                 await received_speech_queue.put(data['data'])
 
             elif data['event'] == 'speech_end':
                 logger.info('Speak end')
                 session.user_speaking_status = (False, datetime.now())
+
+                if session.stt_task is not None:
+                    session.stt_task.cancel()
+                    session.stt_task = None
 
             elif data['event'] == 'speech_prompt_end':
                 if session.prompt:
@@ -164,9 +156,6 @@ async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db
                         await session.client_socket.send_json({
                             'type': 'stt_output_invalidation'
                         })
-
-                        session.stt_task.cancel()
-                        session.stt_task = asyncio.create_task(stt_sender(session, received_speech_queue))
 
             elif data['event'] == 'text_prompt':
                 session.prompt = f'{session.prompt or ""}{data["prompt"]}'
@@ -182,27 +171,16 @@ async def websocket_input_endpoint(websocket: WebSocket, chat_id: str = None, db
                 session.speech_enabled = data['value']
                 logger.warning(f'Speech {session.speech_enabled}')
 
-            elif data['event'] == 'config_request':
-                await websocket.send_json({
-                    'type': 'config',
-                    'config': json.loads(session.chat.config.model_dump_json())
-                })
-
             elif data['event'] == 'config':
                 await session.set_config_from_event(data['field'], data['value'])
-                logger.warning(f'Successfully set {data['field']} to {data['value']}')
-
 
     except starlette.websockets.WebSocketDisconnect:
         pass
 
     except Exception as e:
-        logger.error('Exception in main')
+        logger.error('Exception in main', exc_info=True)
         logger.error(str(e))
 
     finally:
-        if status_notify_task is not None:
-            status_notify_task.cancel()
-
         logger.warning(f'Terminating client')
         session.terminate()

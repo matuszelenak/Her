@@ -1,18 +1,19 @@
 import useWebSocket from "react-use-websocket";
-import {useAudioPlayer} from "../utils/audioPlayer.ts";
+import { useAudioPlayer } from "../utils/audioPlayer.ts";
 import Grid from "@mui/material/Grid2";
-import {Button, Paper, Stack, TextField, Typography} from "@mui/material";
-import {useEffect, useState} from "react";
+import { Button, Paper, Stack, TextField, Typography } from "@mui/material";
+import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
-import {arrayBufferToBase64, base64ToArrayBuffer} from "../utils/encoding.ts";
-import {useMicVAD} from "../utils/vad/useMic.tsx";
-import {Token, WebsocketEvent} from "../types.ts";
-import {ChatList} from "../Components/ChatList.tsx";
-import {useQuery, useQueryClient} from "@tanstack/react-query";
-import {axiosDefault} from "../api.ts";
-import {DependencyToolbar} from "../Components/DependencyToolbar.tsx";
+import { arrayBufferToBase64, base64ToArrayBuffer } from "../utils/encoding.ts";
+import { useMicVAD } from "../utils/vad/useMic.tsx";
+import { ChatConfiguration, Token, WebsocketEvent } from "../types.ts";
+import { ChatList } from "../Components/ChatList.tsx";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { axiosDefault } from "../api.ts";
+import { DependencyToolbar } from "../Components/DependencyToolbar.tsx";
 import remarkGfm from "remark-gfm";
+import { useNavigate, useParams } from "react-router-dom";
 
 
 type Message = {
@@ -21,13 +22,16 @@ type Message = {
 }
 
 
-export const Chat = ({chatId}: { chatId?: string }) => {
+export const Chat = () => {
+    const {chatId} = useParams<string>();
     const queryClient = useQueryClient()
+    const navigate = useNavigate()
     const [messages, setMessages] = useState<Message[]>([])
     const [userMessage, setUserMessage] = useState("")
     const [agentMessage, setAgentMessage] = useState<Array<Token>>([])
+    const [config, setConfig] = useState<ChatConfiguration | null>(null)
 
-    const [speechEnabled, setSpeechEnabled] = useState(false)
+    const [speechEnabled, setSpeechEnabled] = useState(true)
 
     const {feeder, freeSpace} = useAudioPlayer(speechEnabled)
 
@@ -37,6 +41,7 @@ export const Chat = ({chatId}: { chatId?: string }) => {
             url: `/chat/${chatId}`,
             method: 'get'
         }).then(({data}) => {
+            setUserMessage("")
             setMessages(data.messages.map((msg: any) => ({
                 ...msg,
                 message: [msg.content]
@@ -49,10 +54,14 @@ export const Chat = ({chatId}: { chatId?: string }) => {
     const {
         sendJsonMessage,
     } = useWebSocket(
-        `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws${chatId ? "/" + chatId : ""}`,
+        `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws/chat`,
         {
             onMessage: (event: WebSocketEventMap['message']) => {
                 const message = JSON.parse(event.data) as WebsocketEvent
+
+                if (message.type == 'config') {
+                    setConfig(message.config)
+                }
 
                 if (message.type == 'speech') {
                     const audioData = new Float32Array(base64ToArrayBuffer(message.samples))
@@ -72,12 +81,16 @@ export const Chat = ({chatId}: { chatId?: string }) => {
                 }
                 if (message.type == 'stt_output_invalidation') {
                     if (userMessage !== "") {
-                        setMessages((prevState: Message[]) => [...prevState, {role: 'user', message: [`~~${userMessage}~~`]}])
+                        setMessages((prevState: Message[]) => [...prevState, {
+                            role: 'user',
+                            message: [`~~${userMessage}~~`]
+                        }])
                     }
                     setUserMessage("")
                 }
 
                 if (message.type == 'new_chat') {
+                    navigate(`/chat/${message.chat_id}`)
                     queryClient.invalidateQueries({queryKey: ['chat_list']})
                 }
             },
@@ -86,6 +99,16 @@ export const Chat = ({chatId}: { chatId?: string }) => {
             share: true
         }
     );
+
+    useEffect(() => {
+        sendJsonMessage({
+            event: 'load_chat',
+            chat_id: chatId || null
+        })
+        if (!chatId) {
+            setMessages([])
+        }
+    }, [chatId]);
 
     useEffect(() => {
         if (agentMessage.length > 0 && agentMessage[agentMessage.length - 1].done) {
@@ -146,9 +169,9 @@ export const Chat = ({chatId}: { chatId?: string }) => {
                                        justifyContent={message.role === 'assistant' ? 'flex-start' : 'flex-end'}
                                        sx={{margin: 2}}>
                                     <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
-                                            <Markdown remarkPlugins={[remarkGfm]}>
-                                                {message.message.join('')}
-                                            </Markdown>
+                                        <Markdown remarkPlugins={[remarkGfm]}>
+                                            {message.message.join('')}
+                                        </Markdown>
 
                                     </Paper>
                                 </Stack>
@@ -156,9 +179,9 @@ export const Chat = ({chatId}: { chatId?: string }) => {
                             {userMessage !== "" && (
                                 <Stack direction="row" justifyContent={'flex-end'} sx={{margin: 2}}>
                                     <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
-                                            <Markdown remarkPlugins={[remarkGfm]}>
-                                                {userMessage.replaceAll('\n', '\r\n')}
-                                            </Markdown>
+                                        <Markdown remarkPlugins={[remarkGfm]}>
+                                            {userMessage.replaceAll('\n', '\r\n')}
+                                        </Markdown>
                                     </Paper>
                                 </Stack>
                             )}
@@ -190,6 +213,7 @@ export const Chat = ({chatId}: { chatId?: string }) => {
                                                 prompt: textInputPrompt
                                             })
                                             setTextInputPrompt("")
+                                            e.preventDefault()
                                         }
                                     }
                                 }}
@@ -207,14 +231,32 @@ export const Chat = ({chatId}: { chatId?: string }) => {
                     </Stack>
                 </Grid>
                 <Grid size={3} sx={{maxHeight: '100vh'}}>
-                    <DependencyToolbar
-                        chatId={chatId}
-                        speechConfirmDelay={speechConfirmDelay}
-                        setSpeechConfirmDelay={setSpeechConfirmDelay}
-                        speechEnabled={speechEnabled}
-                        setSpeechEnabled={setSpeechEnabled}
+                    {config && <DependencyToolbar
+                        config={config}
+                        setConfigValue={(field, value) => {
+                            sendJsonMessage({
+                                event: 'config',
+                                field: field,
+                                value: value
+                            })
+                        }}
                         vad={vad}
+                        speech={{
+                            speaking: speechEnabled,
+                            toggleSpeaking: () => {
+                                setSpeechEnabled((prevState) => {
+                                    sendJsonMessage({
+                                        event: 'speech_toggle',
+                                        value: !prevState
+                                    })
+                                    return !prevState
+                                })
+                            },
+                            confirmDelay: speechConfirmDelay,
+                            setConfirmDelay: setSpeechConfirmDelay
+                        }}
                     />
+                    }
                 </Grid>
             </Grid>
         </>

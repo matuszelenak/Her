@@ -1,10 +1,11 @@
-export type Configuration = {
+export type ChatConfiguration = {
     ollama: {
         model: string
         ctx_length: number
         temperature: number
         repeat_penalty: number
         system_prompt: string
+        tools: string[]
     },
     xtts: {
         voice: string
@@ -16,14 +17,12 @@ export type Configuration = {
     }
     app: {
         prevalidate_prompt: boolean
-        speech_submit_delay_ms: number
     }
 }
 
 
 export type OllamaModel = {
     model: string
-    name: string
     size: number
 }
 
@@ -34,10 +33,6 @@ export type Token = {
         content: string
     }
     done: boolean
-    prompt_eval_count?: number
-    prompt_eval_duration?: number
-    eval_count?: number
-    eval_duration?: number
 }
 
 
@@ -59,12 +54,10 @@ export type WebsocketEvent = {
     samples: string
 } | {
     type: 'new_chat'
-} | {
-    type: 'dependency_status'
-    status: DependencyStatus
+    chat_id: string
 } | {
     type: 'stt_output_invalidation'
 } | {
     type: 'config'
-    config: Configuration
+    config: ChatConfiguration
 }

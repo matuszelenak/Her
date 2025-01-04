@@ -4,6 +4,7 @@ import json
 import logging
 
 import numpy as np
+# import scipy
 import websockets
 from sortedcontainers import SortedDict
 
@@ -37,13 +38,18 @@ async def stt_sender(session: Session, received_speech_queue: asyncio.Queue):
                 samples = np.frombuffer(samples, dtype=np.float32)
                 # samples = scipy.signal.resample(samples, round(samples.shape[0] * (16000 / 44100)))
                 logger.warning(f'Sending {samples.shape} samples')
+                # await stt_socket.send(json.dumps(
+                #     {
+                #         'samples': samples
+                #     }
+                # ))
                 await stt_socket.send(samples.tobytes())
 
     except asyncio.CancelledError:
         logger.warning('STT Task cancelled')
     except Exception as e:
-        logger.warning('STT task exception')
-        logger.warning(e)
+        logger.error('STT task exception', exc_info=True)
+        logger.error(str(e))
     finally:
         if receiver_task is not None:
             receiver_task.cancel()

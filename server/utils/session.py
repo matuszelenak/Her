@@ -59,7 +59,8 @@ class Session:
             logger.warning(str(self.chat))
 
             await self.client_socket.send_json({
-                'type': 'new_chat'
+                'type': 'new_chat',
+                'chat_id': str(self.chat.id)
             })
 
         self.chat.messages.append(message | {
@@ -83,3 +84,5 @@ class Session:
             flag_modified(self.chat, 'config_db')
             await self.db.commit()
             await self.db.refresh(self.chat)
+
+        logger.warning(f'Changed config field {field} -> {value}')

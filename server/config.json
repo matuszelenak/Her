@@ -17,6 +17,6 @@
   },
   "app": {
     "prevalidate_prompt": true,
-    "speech_submit_delay_ms": 2000
+    "inactivity_timeout_ms": 30000
   }
 }

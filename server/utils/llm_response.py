@@ -1,10 +1,10 @@
-import json
 import logging
 import re
+from typing import Tuple, Literal, Union, AsyncGenerator
 
 from bs4 import BeautifulSoup
 from markdown import markdown
-from ollama import AsyncClient
+from ollama import AsyncClient, Message, ChatResponse
 
 import utils.tools as tools
 from utils.constants import OLLAMA_API_URL
@@ -13,44 +13,18 @@ from utils.session import Session
 logger = logging.getLogger(__name__)
 
 
-def parse_llama_tool_call(s):
-    split_call = re.split(re.compile(r'}\s+\{'), s)
-
-    if len(split_call) >= 2:
-        split_call[0] = split_call[0] + '}'
-        split_call[-1] = '{' + split_call[-1]
-
-        for i in range(1, len(split_call) - 1):
-            split_call[i] = '{' + split_call[i] + '}'
-
-    return [json.loads(c) for c in split_call]
+TokenTuple = Tuple[Literal['token'], ChatResponse]
+SentenceTuple = Tuple[Literal['sentence'], str]
+ToolCallTuple = Tuple[Literal['tool_call'], Message.ToolCall]
 
 
-def parse_mistral_tool_call(s: str):
-    calls = re.sub(r'^\[TOOL_CALLS]', '', s)
-    calls = json.loads(calls)
-
-    for call in calls:
-        call['parameters'] = call['arguments']
-        del call['arguments']
-
-    return calls
-
-
-TOOL_CALL_PATTERNS = [
-    (re.compile(r'^\{.*'), parse_llama_tool_call),
-    (re.compile(r'^\[TOOL_CALLS].*'), parse_mistral_tool_call)
-]
-
-
-async def generate_llm_response(session: Session, prompt: str):
+async def generate_llm_response(session: Session, prompt: str) -> AsyncGenerator[Union[TokenTuple, SentenceTuple, ToolCallTuple], None]:
     client = AsyncClient(OLLAMA_API_URL)
-
-    is_tool_call = None
-    tool_call_parser = None
 
     llm_response = []
     sentence_buffer = ""
+
+    part: ChatResponse
     async for part in await client.chat(
             model=session.chat.config.ollama.model,
             messages=[{
@@ -67,42 +41,35 @@ async def generate_llm_response(session: Session, prompt: str):
                 getattr(tools, tool) for tool in session.chat.config.ollama.tools
             ],
     ):
-        msg = part['message']['content']
+        msg = part.message.content
         llm_response.append(msg)
 
-        if is_tool_call is None:
-            for regex, parser in TOOL_CALL_PATTERNS:
-                if re.match(regex, msg):
-                    is_tool_call = True
-                    tool_call_parser = parser
-                    break
-                else:
-                    is_tool_call = False
+        if len(part.message.tool_calls or []) > 0:
+            for call in part.message.tool_calls:
+                logger.warning(f'{call}')
+                yield 'tool_call', call
 
-        if not is_tool_call:
-            yield 'token', part
+            break
 
-            msg = re.sub(r'\n+', '\n', msg)
+        yield 'token', part
 
-            while '\n' in msg:
-                split_msg = msg.split('\n')
+        msg = re.sub(r'\n+', '\n', msg)
 
-                sentence = sentence_buffer + split_msg[0]
+        while '\n' in msg:
+            split_msg = msg.split('\n')
 
-                yield 'sentence', sentence
+            sentence = sentence_buffer + split_msg[0]
 
-                sentence_buffer = ""
-                msg = '\n'.join(split_msg[1:])
+            yield 'sentence', sentence
 
-            sentence_buffer += msg
+            sentence_buffer = ""
+            msg = '\n'.join(split_msg[1:])
+
+        sentence_buffer += msg
 
     if sentence_buffer:
         yield 'sentence', sentence_buffer
 
-    if is_tool_call:
-        llm_response = ''.join(llm_response)
-
-        yield 'tool_call', tool_call_parser(llm_response)
 
 
 async def strip_markdown(sentence):

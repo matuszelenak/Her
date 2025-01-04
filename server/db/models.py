@@ -1,5 +1,3 @@
-from functools import cached_property
-
 from sqlalchemy import Column, UUID, JSON, DateTime, String
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -19,7 +17,7 @@ class Chat(Base):
     def __str__(self):
         return f'{self.id}, {len(self.messages)} msgs'
 
-    @cached_property
+    @property
     def config(self):
         from utils.configuration import SessionConfig
         return SessionConfig.model_validate(self.config_db)

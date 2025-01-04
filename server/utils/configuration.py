@@ -26,7 +26,7 @@ class XTTSConfig(BaseModel):
 
 class AppConfig(BaseModel):
     prevalidate_prompt: bool
-    speech_submit_delay_ms: int
+    inactivity_timeout_ms: int
 
 
 class SessionConfig(BaseModel):

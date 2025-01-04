@@ -34,9 +34,25 @@ tool_call_regex_mistral = re.compile(r'\[TOOL_CALLS].*')
 
 
 def get_ip_address():
+    """
+    Get the current IP address
+
+    Args:
+
+    Returns:
+      str: The current IP address
+    """
     resp = requests.get('https://icanhazip.com')
     return resp.content.decode('utf-8').strip()
 
 
 def get_current_moon_phase():
+    """
+    Get the current moon phase
+
+    Args:
+
+    Returns:
+      str: Current moon phase
+    """
     return 'It is a full moon'

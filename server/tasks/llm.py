@@ -2,12 +2,16 @@ import asyncio
 import logging
 from datetime import datetime
 
+from ollama import Message, ChatResponse
+
 from tasks.tts import tts_task
 from utils.llm_response import generate_llm_response, strip_markdown
 from utils.session import Session
 from utils.tools import get_ip_address, get_current_moon_phase
 
 logger = logging.getLogger(__name__)
+logger.setLevel('INFO')
+
 
 tools = {
     'get_ip_address': get_ip_address,
@@ -33,9 +37,16 @@ async def llm_query_task(session: Session, prompt: str):
 
             async for resp_type, content in generate_llm_response(session, prompt):
                 if resp_type == 'token':
+                    content: ChatResponse
                     await session.client_socket.send_json({
                         'type': 'token',
-                        'token': content
+                        'token': {
+                            'message': {
+                                'role': content.message.role,
+                                'content': content.message.content
+                            },
+                            'done': content.done
+                        }
                     })
 
                 elif resp_type == 'sentence':
@@ -48,12 +59,10 @@ async def llm_query_task(session: Session, prompt: str):
                     printable_response += content
 
                 elif resp_type == 'tool_call':
-                    for tool_call in content:
-
-                        fn = tools.get(tool_call['name'])
-                        if fn:
-                            parameters = tool_call['parameters']
-                            tool_answers.append(fn(**parameters))
+                    content: Message.ToolCall
+                    fn = tools.get(content.function.name)
+                    if fn:
+                        tool_answers.append(fn(**content.function.arguments))
 
             if len(tool_answers) > 0:
                 for answer in tool_answers:
@@ -76,5 +85,5 @@ async def llm_query_task(session: Session, prompt: str):
     except asyncio.CancelledError:
         logger.warning('LLM task cancelled')
     except Exception as e:
-        logger.error('Error in LLM task')
+        logger.error('Error in LLM task', exc_info=True)
         logger.error(str(e))

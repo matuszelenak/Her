@@ -1,8 +1,8 @@
-import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
-import {axiosDefault} from "../api.ts";
-import {IconButton, Stack, Typography} from "@mui/material";
-import {NavLink, useNavigate} from "react-router-dom";
-import {Delete} from "@mui/icons-material";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { axiosDefault } from "../api.ts";
+import { IconButton, Stack, Typography } from "@mui/material";
+import { NavLink, useNavigate, useParams } from "react-router-dom";
+import { Delete } from "@mui/icons-material";
 
 export type ChatsResponse = {
     id: string
@@ -12,6 +12,8 @@ export type ChatsResponse = {
 export const ChatList = () => {
     const queryCient = useQueryClient()
     const navigate = useNavigate()
+    const {chatId} = useParams<string>();
+
 
     const {data: chats} = useQuery({
         queryKey: ['chat_list'],
@@ -27,9 +29,11 @@ export const ChatList = () => {
             url: `/chat/${chatId}`,
             method: "delete"
         }),
-        onSuccess: async () => {
+        onSuccess: async ({data}) => {
             await queryCient.invalidateQueries({queryKey: ['chat_list']})
-            navigate('/')
+            if (data.id == chatId) {
+                navigate('/')
+            }
         }
     })
 
@@ -52,9 +56,8 @@ export const ChatList = () => {
                         <Typography variant="h5">{chat.header}</Typography>
                     </NavLink>
                     <IconButton onClick={() => deleteMutation.mutate(chat.id)}>
-                        <Delete />
+                        <Delete/>
                     </IconButton>
-
                 </Stack>
             ))}
         </Stack>

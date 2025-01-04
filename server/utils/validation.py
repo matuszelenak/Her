@@ -14,7 +14,6 @@ The very first message is likely to just be a greeting, so accept any.
 Remember, I am not talking to you, you are simply validating what I send you.
 """
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -42,7 +41,8 @@ async def is_prompt_valid(session, prompt, message_history):
 
 
 async def should_agent_respond(session):
-    if session.last_interaction is not None and (datetime.now() - session.last_interaction) < timedelta(seconds=30):
+    if session.last_interaction is not None and (datetime.now() - session.last_interaction) < timedelta(
+            seconds=session.chat.config.app.inactivity_timeout_ms):
         return True
 
     client = AsyncClient(OLLAMA_API_URL)

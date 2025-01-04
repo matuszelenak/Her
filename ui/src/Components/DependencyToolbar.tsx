@@ -1,13 +1,16 @@
-import {DependencyStatus, OllamaModel, WebsocketEvent} from "../types.ts";
+import { ChatConfiguration, OllamaModel } from "../types.ts";
 import {
     Box,
-    Button, Checkbox,
+    Button,
+    Checkbox,
     CircularProgress,
     FormControl,
     Grid,
     Input,
-    InputLabel, ListItemText,
-    MenuItem, OutlinedInput,
+    InputLabel,
+    ListItemText,
+    MenuItem,
+    OutlinedInput,
     Paper,
     Select,
     Slider,
@@ -15,115 +18,74 @@ import {
     TextField,
     Typography
 } from "@mui/material";
-import {useQuery} from "@tanstack/react-query";
-import {axiosDefault} from "../api.ts";
-import useWebSocket from "react-use-websocket";
-import {Dispatch, SetStateAction, useEffect, useState} from "react";
-import {useDelayedInput} from "../utils/useDelayedInput.ts";
+import { useQuery } from "@tanstack/react-query";
+import { axiosDefault } from "../api.ts";
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
+import { useDelayedInput } from "../utils/useDelayedInput.ts";
+import { useServiceHealth } from "../hooks/useServiceHealth.ts";
 
 
 const languages = ['cs', 'en']
 
 
 export const DependencyToolbar = ({
-                                      chatId,
-                                      vad,
-                                      speechConfirmDelay,
-                                      setSpeechConfirmDelay,
-                                      speechEnabled,
-                                      setSpeechEnabled
+                                      config, vad, speech, setConfigValue
                                   }: {
-    chatId: string | undefined,
+    config: ChatConfiguration
+    setConfigValue: (field: string, value: any) => void
     vad: { listening: boolean, toggle: () => void },
-    speechConfirmDelay: number,
-    setSpeechConfirmDelay: Dispatch<SetStateAction<number>>,
-    speechEnabled: boolean,
-    setSpeechEnabled: Dispatch<SetStateAction<boolean>>
+    speech: {
+        speaking: boolean,
+        toggleSpeaking: () => void,
+        confirmDelay: number,
+        setConfirmDelay: Dispatch<SetStateAction<number>>
+    }
 }) => {
+    const [model, setModel] = useState(config.ollama.model)
+    const [temperature, rtTemperature, setRTTemperature] = useDelayedInput<number | null>(config.ollama.temperature, 200)
+    const [repeatPenalty, rtRepeatPenalty, setRTRepeatPenalty] = useDelayedInput<number | null>(config.ollama.repeat_penalty, 200)
+    const [ctxLength, rtCtxLength, setRTCtxLength] = useDelayedInput<number | null>(config.ollama.ctx_length, 200)
+    const [sysPrompt, rtSystemPrompt, setRTSystemPrompt] = useDelayedInput<string | null>(config.ollama.system_prompt, 200)
+    const [tools, setTools] = useState<string[]>(config.ollama.tools)
+    const [voice, setVoice] = useState(config.xtts.voice)
+    const [xttsLang, setXttsLang] = useState(config.xtts.language)
 
-    const [model, setModel] = useState('none')
-    const [temperature, rtTemperature, setRTTemperature] = useDelayedInput<number | null>(null, 200)
-    const [repeatPenalty, rtRepeatPenalty, setRTRepeatPenalty] = useDelayedInput<number | null>(null, 200)
-    const [ctxLength, rtCtxLength, setRTCtxLength] = useDelayedInput<number | null>(null, 200)
-    const [sysPrompt, rtSystemPrompt, setRTSystemPrompt] = useDelayedInput<string | null>(null, 200)
-    const [tools, setTools] = useState<string[]>([])
-    const [voice, setVoice] = useState("aloy.wav")
-    const [xttsLang, setXttsLang] = useState("en")
-
-    const [status, setStatus] = useState<DependencyStatus>({
-        xtts: false,
-        whisper: false,
-        ollama: []
-    })
-
-    const {sendJsonMessage} = useWebSocket(
-        `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws${chatId ? "/" + chatId : ""}`,
-        {
-            onMessage: (event: WebSocketEventMap['message']) => {
-                const message = JSON.parse(event.data) as WebsocketEvent
-
-                if (message.type == 'dependency_status') {
-                    setStatus(message.status)
-                }
-
-                if (message.type == 'config') {
-                    console.log(message.config)
-                    setModel(message.config.ollama.model)
-                    setRTTemperature(message.config.ollama.temperature)
-                    setRTRepeatPenalty(message.config.ollama.repeat_penalty)
-                    setRTCtxLength(message.config.ollama.ctx_length)
-                    setRTSystemPrompt(message.config.ollama.system_prompt)
-                }
-            },
-            reconnectAttempts: 1000,
-            reconnectInterval: 2000,
-            share: true
-        }
-    );
+    const status = useServiceHealth()
 
     useEffect(() => {
-        sendJsonMessage({
-            event: 'config_request'
-        })
-    }, []);
+        setModel(config.ollama.model)
+        setRTTemperature(config.ollama.temperature)
+        setRTRepeatPenalty(config.ollama.repeat_penalty)
+        setRTCtxLength(config.ollama.ctx_length)
+        setRTSystemPrompt(config.ollama.system_prompt)
+        setTools(config.ollama.tools)
+
+        setVoice(config.xtts.voice)
+        setXttsLang(config.xtts.language)
+    }, [config]);
+
 
     useEffect(() => {
         if (temperature !== null) {
-            sendJsonMessage({
-                event: 'config',
-                field: 'ollama.temperature',
-                value: temperature
-            })
+            setConfigValue('ollama.temperature', temperature)
         }
     }, [temperature]);
 
     useEffect(() => {
         if (ctxLength !== null) {
-            sendJsonMessage({
-                event: 'config',
-                field: 'ollama.ctx_length',
-                value: ctxLength
-            })
+            setConfigValue('ollama.ctx_length', ctxLength)
         }
     }, [ctxLength]);
 
     useEffect(() => {
         if (repeatPenalty !== null) {
-            sendJsonMessage({
-                event: 'config',
-                field: 'ollama.repeat_penalty',
-                value: repeatPenalty
-            })
+            setConfigValue('ollama.repeat_penalty', repeatPenalty)
         }
     }, [repeatPenalty]);
 
     useEffect(() => {
         if (sysPrompt !== null) {
-            sendJsonMessage({
-                event: 'config',
-                field: 'ollama.system_prompt',
-                value: sysPrompt
-            })
+            setConfigValue('ollama.system_prompt', sysPrompt)
         }
     }, [sysPrompt]);
 
@@ -141,6 +103,8 @@ export const DependencyToolbar = ({
             url: '/xtts',
             method: 'get'
         }).then(({data}) => data.voices as string[]),
+        enabled: status.xtts,
+        initialData: []
     })
 
     const {data: toolChoices} = useQuery({
@@ -179,14 +143,14 @@ export const DependencyToolbar = ({
                                     max={10000}
                                     step={100}
                                     disabled={!status.whisper}
-                                    value={speechConfirmDelay}
-                                    onChange={(_: Event, newValue: number | number[]) => setSpeechConfirmDelay(newValue as number)}
+                                    value={speech.confirmDelay}
+                                    onChange={(_: Event, newValue: number | number[]) => speech.setConfirmDelay(newValue as number)}
                                 />
                             </Grid>
                             <Grid item>
                                 <Input
                                     size="small"
-                                    value={speechConfirmDelay}
+                                    value={speech.confirmDelay}
                                     onChange={(event) => {
                                         // @ts-ignore
                                         setSpeechConfirmDelay(event.target.value as number)
@@ -209,7 +173,7 @@ export const DependencyToolbar = ({
             <Paper elevation={1} sx={{padding: 2, margin: 2}}>
                 <Typography variant="h6">Ollama</Typography>
 
-                <Stack direction='column' spacing={2} marginTop={1}>
+                {status.ollama && <Stack direction='column' spacing={2} marginTop={1}>
                     <FormControl>
                         <InputLabel id="model-select-label">Model</InputLabel>
                         <Select
@@ -221,17 +185,13 @@ export const DependencyToolbar = ({
                             value={model}
                             onChange={(e) => {
                                 setModel(e.target.value)
-                                sendJsonMessage({
-                                    event: 'config',
-                                    field: 'ollama.model',
-                                    value: e.target.value
-                                })
+                                setConfigValue('ollama.model', e.target.value)
                             }}
                         >
                             <MenuItem key={'none'} value={'none'}></MenuItem>
-                            {models.map(({name, model}) => (
-                                <MenuItem key={name}
-                                          value={model}>{status.ollama?.includes(name) ? '[loaded]' : ''} {name}</MenuItem>
+                            {models.map(({model}) => (
+                                <MenuItem key={model}
+                                          value={model}>{status.ollama?.includes(model) ? '[loaded]' : ''} {model}</MenuItem>
                             ))}
                         </Select>
                     </FormControl>
@@ -323,41 +283,33 @@ export const DependencyToolbar = ({
                             value={tools}
                             onChange={(e) => {
                                 setTools(e.target.value as string[])
-                                sendJsonMessage({
-                                    event: 'config',
-                                    field: 'ollama.tools',
-                                    value: e.target.value
-                                })
+                                setConfigValue('ollama.tools', e.target.value)
                             }}
-                            input={<OutlinedInput label="Tools" />}
+                            input={<OutlinedInput label="Tools"/>}
                             renderValue={(selected) => selected.join(', ')}
                         >
                             {toolChoices.map((name) => (
                                 <MenuItem key={name} value={name}>
-                                    <Checkbox checked={tools.includes(name)} />
-                                    <ListItemText primary={name} />
+                                    <Checkbox checked={tools.includes(name)}/>
+                                    <ListItemText primary={name}/>
                                 </MenuItem>
                             ))}
                         </Select>
                     </FormControl>
-                </Stack>
+                </Stack>}
             </Paper>
 
             <Paper elevation={1} sx={{padding: 2, margin: 2}}>
                 <Stack direction="row" justifyContent="space-between" sx={{margin: 1}}>
                     <Typography variant="h6">XTTS</Typography>
-                    <Button variant="outlined" onClick={() => {
-                        sendJsonMessage({
-                            event: 'speech_toggle',
-                            value: !speechEnabled
-                        })
-                        setSpeechEnabled((prevState) => !prevState)
+                    <Button variant="outlined" disabled={!status.xtts} onClick={() => {
+                        speech.toggleSpeaking()
                     }}>
-                        {speechEnabled ? "Disable speech" : "Enable speech"}
+                        {speech.speaking ? "Disable speech" : "Enable speech"}
                     </Button>
                 </Stack>
 
-                <Stack direction='column' spacing={2} marginTop={1}>
+                {status.xtts && <Stack direction='column' spacing={2} marginTop={1}>
                     <FormControl>
                         <InputLabel id="voice-select-label">Voice</InputLabel>
                         <Select
@@ -369,11 +321,7 @@ export const DependencyToolbar = ({
                             value={voice}
                             onChange={(e) => {
                                 setVoice(e.target.value)
-                                sendJsonMessage({
-                                    event: 'config',
-                                    field: 'xtts.voice',
-                                    value: e.target.value
-                                })
+                                setConfigValue('xtts.voice', e.target.value)
                             }}
                         >
                             {voices.map((voice) => (
@@ -392,12 +340,8 @@ export const DependencyToolbar = ({
                             label='Language'
                             value={xttsLang}
                             onChange={(e) => {
-                                setXttsLang(e.target.value)
-                                sendJsonMessage({
-                                    event: 'config',
-                                    field: 'xtts.language',
-                                    value: e.target.value
-                                })
+                                setXttsLang(e.target.value as 'en' | 'cs')
+                                setConfigValue('xtts.language', e.target.value)
                             }
                             }
                         >
@@ -406,7 +350,7 @@ export const DependencyToolbar = ({
                             ))}
                         </Select>
                     </FormControl>
-                </Stack>
+                </Stack>}
             </Paper>
         </>
     )
