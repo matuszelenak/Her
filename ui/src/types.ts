@@ -48,10 +48,11 @@ export type WebsocketEvent = {
     token: Token
 } | {
     type: 'stt_output'
-    text: string
-} | {
-    type: 'speech'
-    samples: string
+    segment: {
+        words: string[],
+        complete: boolean
+        id: number
+    }
 } | {
     type: 'new_chat'
     chat_id: string
@@ -60,4 +61,10 @@ export type WebsocketEvent = {
 } | {
     type: 'config'
     config: ChatConfiguration
+} | {
+    type: 'speech_id'
+    filename: string
+} | {
+    type: 'manual_prompt'
+    text: string
 }

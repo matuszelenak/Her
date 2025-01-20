@@ -12,6 +12,7 @@ from ollama import AsyncClient
 from sqlalchemy import select, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
+from starlette.responses import FileResponse
 
 from db.models import Chat
 from db.session import get_db
@@ -76,18 +77,25 @@ async def get_tools():
     return ['get_ip_address_def', 'get_current_moon_phase']
 
 
+@app.get('/audio/{uuid}')
+async def get_audio(uuid: str):
+    return FileResponse(f'/tts_output/{uuid}', media_type='audio/wav')
+
+
 @app.websocket("/ws/health")
 async def health_endpoint(websocket: WebSocket):
     await websocket.accept()
 
-    while True:
-        await websocket.receive_json()
-        await websocket.send_json({
-            'ollama': ollama_status(),
-            'xtts': xtts_status(),
-            'whisper': whisper_status()
-        })
-
+    try:
+        while True:
+            await websocket.receive_json()
+            await websocket.send_json({
+                'ollama': ollama_status(),
+                'xtts': xtts_status(),
+                'whisper': whisper_status()
+            })
+    except starlette.websockets.WebSocketDisconnect:
+        pass
 
 @app.websocket("/ws/chat")
 async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
@@ -123,15 +131,6 @@ async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)
                     'config': json.loads(session.chat.config.model_dump_json())
                 })
 
-            if data['event'] == 'free_space':
-                session.free_samples = data["value"]
-
-            elif data['event'] == 'resp_wait':
-                logger.warning('Throttling!')
-
-            # elif data['event'] == 'resp_ok':
-            #     session.last_accepted_speech_id = data['id']
-
             elif data['event'] == 'samples':
                 session.user_speaking_status = (True, datetime.now())
                 if session.stt_task is None:
@@ -141,10 +140,7 @@ async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)
             elif data['event'] == 'speech_end':
                 logger.info('Speak end')
                 session.user_speaking_status = (False, datetime.now())
-
-                if session.stt_task is not None:
-                    session.stt_task.cancel()
-                    session.stt_task = None
+                await received_speech_queue.put(None)
 
             elif data['event'] == 'speech_prompt_end':
                 if session.prompt:
@@ -161,7 +157,7 @@ async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)
                 session.prompt = f'{session.prompt or ""}{data["prompt"]}'
 
                 await session.client_socket.send_json({
-                    'type': 'stt_output',
+                    'type': 'manual_prompt',
                     'text': data['prompt']
                 })
 
@@ -173,6 +169,9 @@ async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)
 
             elif data['event'] == 'config':
                 await session.set_config_from_event(data['field'], data['value'])
+
+            elif data['event'] == 'finished_speaking':
+                session.last_interaction = datetime.now()
 
     except starlette.websockets.WebSocketDisconnect:
         pass

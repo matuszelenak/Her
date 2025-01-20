@@ -36,10 +36,10 @@ async def generate_llm_response(session: Session, prompt: str) -> AsyncGenerator
                 num_ctx=session.chat.config.ollama.ctx_length,
                 repeat_penalty=session.chat.config.ollama.repeat_penalty,
                 temperature=session.chat.config.ollama.temperature,
-            ),
-            tools=[
-                getattr(tools, tool) for tool in session.chat.config.ollama.tools
-            ],
+            )#,
+            # tools=[
+            #     getattr(tools, tool) for tool in session.chat.config.ollama.tools
+            # ],
     ):
         msg = part.message.content
         llm_response.append(msg)
@@ -55,17 +55,12 @@ async def generate_llm_response(session: Session, prompt: str) -> AsyncGenerator
 
         msg = re.sub(r'\n+', '\n', msg)
 
-        while '\n' in msg:
-            split_msg = msg.split('\n')
+        for char in msg:
+            sentence_buffer += char
+            if char in ('.', ':', '\n'):
+                yield 'sentence', sentence_buffer.strip() + " "
 
-            sentence = sentence_buffer + split_msg[0]
-
-            yield 'sentence', sentence
-
-            sentence_buffer = ""
-            msg = '\n'.join(split_msg[1:])
-
-        sentence_buffer += msg
+                sentence_buffer = ""
 
     if sentence_buffer:
         yield 'sentence', sentence_buffer
