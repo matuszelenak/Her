@@ -1,11 +1,10 @@
 import useWebSocket from "react-use-websocket";
-import { useAudioPlayer } from "../utils/audioPlayer.ts";
 import Grid from "@mui/material/Grid2";
 import { Button, Paper, Stack, TextField, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
-import { arrayBufferToBase64, base64ToArrayBuffer } from "../utils/encoding.ts";
+import { arrayBufferToBase64 } from "../utils/encoding.ts";
 import { useMicVAD } from "../utils/vad/useMic.tsx";
 import { ChatConfiguration, Token, WebsocketEvent } from "../types.ts";
 import { ChatList } from "../Components/ChatList.tsx";
@@ -14,6 +13,7 @@ import { axiosDefault } from "../api.ts";
 import { DependencyToolbar } from "../Components/DependencyToolbar.tsx";
 import remarkGfm from "remark-gfm";
 import { useNavigate, useParams } from "react-router-dom";
+import { usePlayer } from "../hooks/useAudioPlayer.ts";
 
 
 type Message = {
@@ -22,26 +22,42 @@ type Message = {
 }
 
 
+type UserMessage = {
+    completedWords: string[],
+    uncertainWords: string[]
+}
+
+
+const renderUserMessage = (msg: UserMessage) => {
+    return `${msg.completedWords.join(' ')} ${msg.uncertainWords.join(' ')}`
+}
+
+
 export const Chat = () => {
     const {chatId} = useParams<string>();
     const queryClient = useQueryClient()
     const navigate = useNavigate()
     const [messages, setMessages] = useState<Message[]>([])
-    const [userMessage, setUserMessage] = useState("")
+    const [userMessage, setUserMessage] = useState<UserMessage>({
+        completedWords: [],
+        uncertainWords: []
+    })
     const [agentMessage, setAgentMessage] = useState<Array<Token>>([])
     const [config, setConfig] = useState<ChatConfiguration | null>(null)
 
     const [speechEnabled, setSpeechEnabled] = useState(true)
 
-    const {feeder, freeSpace} = useAudioPlayer(speechEnabled)
-
+    const {queueAudio, finishedId, stop: audioPlayerStop} = usePlayer()
     useQuery({
         queryKey: ['chat', chatId],
         queryFn: async () => axiosDefault({
             url: `/chat/${chatId}`,
             method: 'get'
         }).then(({data}) => {
-            setUserMessage("")
+            setUserMessage({
+                completedWords: [],
+                uncertainWords: []
+            })
             setMessages(data.messages.map((msg: any) => ({
                 ...msg,
                 message: [msg.content]
@@ -56,42 +72,62 @@ export const Chat = () => {
     } = useWebSocket(
         `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws/chat`,
         {
-            onMessage: (event: WebSocketEventMap['message']) => {
+            onMessage: async (event: WebSocketEventMap['message']) => {
                 const message = JSON.parse(event.data) as WebsocketEvent
 
                 if (message.type == 'config') {
                     setConfig(message.config)
                 }
 
-                if (message.type == 'speech') {
-                    const audioData = new Float32Array(base64ToArrayBuffer(message.samples))
-                    feeder(audioData)
+                if (message.type == 'speech_id') {
+                    await queueAudio(message.filename)
                 }
 
                 if (message.type == 'token') {
-                    if (userMessage !== "") {
-                        setMessages((prevState: Message[]) => [...prevState, {role: 'user', message: [userMessage]}])
-                        setUserMessage("")
+                    if (userMessage.completedWords.length > 0) {
+                        setMessages((prevState: Message[]) => [...prevState, {role: 'user', message: [renderUserMessage(userMessage)]}])
+                        setUserMessage({
+                            completedWords: [],
+                            uncertainWords: []
+                        })
                     }
                     setAgentMessage((prevState) => ([...prevState, message.token]))
                 }
 
                 if (message.type == 'stt_output') {
-                    setUserMessage(message.text)
-                }
-                if (message.type == 'stt_output_invalidation') {
-                    if (userMessage !== "") {
-                        setMessages((prevState: Message[]) => [...prevState, {
-                            role: 'user',
-                            message: [`~~${userMessage}~~`]
-                        }])
+                    audioPlayerStop()
+                    if (message.segment.complete) {
+                        setUserMessage((prev) => ({
+                            completedWords: [...prev.completedWords, ...message.segment.words],
+                            uncertainWords: []
+                        }))
+                    } else {
+                        setUserMessage((prev) => ({
+                            completedWords: prev.completedWords,
+                            uncertainWords:  message.segment.words
+                        }))
                     }
-                    setUserMessage("")
                 }
+
+                if (message.type == 'manual_prompt') {
+                    setUserMessage({
+                        completedWords: [message.text],
+                        uncertainWords: []
+                    })
+                }
+                // if (message.type == 'stt_output_invalidation') {
+                //     if (userMessage !== "") {
+                //         setMessages((prevState: Message[]) => [...prevState, {
+                //             role: 'user',
+                //             message: [`~~${userMessage}~~`]
+                //         }])
+                //     }
+                //     setUserMessage("")
+                // }
 
                 if (message.type == 'new_chat') {
                     navigate(`/chat/${message.chat_id}`)
-                    queryClient.invalidateQueries({queryKey: ['chat_list']})
+                    await queryClient.invalidateQueries({queryKey: ['chat_list']})
                 }
             },
             reconnectAttempts: 1000,
@@ -111,6 +147,14 @@ export const Chat = () => {
     }, [chatId]);
 
     useEffect(() => {
+        if (finishedId) {
+            sendJsonMessage({
+                event: 'finished_speaking'
+            })
+        }
+    }, [finishedId]);
+
+    useEffect(() => {
         if (agentMessage.length > 0 && agentMessage[agentMessage.length - 1].done) {
             setMessages((prevState: Message[]) => {
                 return [...prevState, {
@@ -121,10 +165,6 @@ export const Chat = () => {
             setAgentMessage((_) => [])
         }
     }, [agentMessage])
-
-    useEffect(() => {
-        sendJsonMessage({event: 'free_space', value: freeSpace})
-    }, [freeSpace])
 
     const [notifySpeechEnd, setNotifySpeechEnd] = useState<NodeJS.Timeout | null>(null)
     const [speechConfirmDelay, setSpeechConfirmDelay] = useState(2000)
@@ -162,6 +202,7 @@ export const Chat = () => {
                     <ChatList/>
                 </Grid>
                 <Grid size={6} sx={{maxHeight: '100vh'}}>
+                    <Typography>{vad.listening}</Typography>
                     <Stack direction="column" justifyContent="space-between" sx={{height: "100%"}} spacing={2}>
                         <ScrollableFeed>
                             {messages.filter(({role}) => role === 'assistant' || role === 'user').map((message: Message, i: number) => (
@@ -176,11 +217,11 @@ export const Chat = () => {
                                     </Paper>
                                 </Stack>
                             ))}
-                            {userMessage !== "" && (
+                            {(userMessage.uncertainWords.length > 0 || userMessage.completedWords.length > 0) && (
                                 <Stack direction="row" justifyContent={'flex-end'} sx={{margin: 2}}>
                                     <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
                                         <Markdown remarkPlugins={[remarkGfm]}>
-                                            {userMessage.replaceAll('\n', '\r\n')}
+                                            {renderUserMessage(userMessage)}
                                         </Markdown>
                                     </Paper>
                                 </Stack>

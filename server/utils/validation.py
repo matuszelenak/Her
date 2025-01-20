@@ -48,7 +48,7 @@ async def should_agent_respond(session):
     client = AsyncClient(OLLAMA_API_URL)
 
     response = await client.chat(
-        model='qwen2.5:0.5b-instruct-q8_0',
+        model='qwen2.5:1.5b-instruct-q8_0',
         messages=[{
             'role': 'user',
             'content': f'Output YES if the following text is addressed to a person called Aloy and NO if it is not. The text is: {session.prompt}'

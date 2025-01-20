@@ -1,15 +1,7 @@
 import asyncio
-import base64
 import logging
-from datetime import datetime
-from urllib.parse import urlencode
 
-import httpx
-import numpy as np
-import scipy
-
-from utils.constants import XTTS2_API_URL, XTTS_OUTPUT_SAMPLING_RATE
-from utils.health import xtts_status
+from providers.kokoro import generate_audio
 from utils.session import Session
 
 logger = logging.getLogger(__name__)
@@ -26,54 +18,21 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
             if not sentence:
                 continue
 
-            if not xtts_status():
-                continue
+            # if not xtts_status():
+            #     continue
 
             if not session.speech_enabled:
                 continue
 
-            params = {
-                'text': sentence,
-                'voice': session.chat.config.xtts.voice,
-                'language': session.chat.config.xtts.language,
-                'output_file': 'whatever.wav'
-            }
-            logger.info(f'Submitting for TTS {sentence}')
-            async with httpx.AsyncClient() as client:
-                async with client.stream(
-                        'GET',
-                        f'{XTTS2_API_URL}/api/tts-generate-streaming?{urlencode(params)}'
-                ) as resp:
-                    buffer = []
-                    async for chunk in resp.aiter_bytes(XTTS_OUTPUT_SAMPLING_RATE):
-                        samples = np.frombuffer(chunk, dtype=np.int16)
-                        samples = samples / np.iinfo(np.int16).max
-                        samples = scipy.signal.resample(
-                            samples,
-                            round(samples.shape[0] * (48000 / XTTS_OUTPUT_SAMPLING_RATE))
-                        )
 
-                        for sample in samples:
-                            if len(buffer) < 8192:
-                                buffer.append(sample)
-                            else:
-                                buffer = np.array(buffer).astype(np.float32).tobytes()
-                                b64_buffer = base64.b64encode(buffer).decode('ascii')
-                                # _id = str(uuid.uuid4())
+            logger.warning(f'Submitting for TTS {sentence}')
 
-                                while True:
-                                    if session.free_samples > 8192 * 8:
-                                        await session.client_socket.send_json({
-                                            'type': 'speech',
-                                            'samples': b64_buffer
-                                        })
-                                        session.last_interaction = datetime.now()
-                                        await asyncio.sleep(0.13)
-                                        break
+            audio_filename = await generate_audio(session, sentence)
 
-                                    await asyncio.sleep(0.15)
-
-                                buffer = []
+            await session.client_socket.send_json({
+                'type': 'speech_id',
+                'filename': audio_filename
+            })
     except asyncio.CancelledError:
         logger.info('TTS task cancelled')
 

@@ -32,6 +32,7 @@ services:
       - "8000:8000"
     volumes:
       - ./server:/app
+      - ./tts_output:/tts_output
 
   ui:
     container_name: ai-girlfriend-ui
