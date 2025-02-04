@@ -11,6 +11,7 @@ COPY server.py server.py
 COPY utils utils
 COPY tasks tasks
 COPY db db
+COPY providers providers
 COPY config.json config.json
 COPY alembic.ini alembic.ini
 

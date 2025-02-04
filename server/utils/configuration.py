@@ -19,9 +19,9 @@ class OllamaConfig(BaseModel):
     tools: List[str]
 
 
-class XTTSConfig(BaseModel):
+class TTSConfig(BaseModel):
+    backend: Literal['kokoro']
     voice: str
-    language: Literal['en', 'cs']
 
 
 class AppConfig(BaseModel):
@@ -32,7 +32,7 @@ class AppConfig(BaseModel):
 class SessionConfig(BaseModel):
     ollama: OllamaConfig
     whisper: WhisperConfig
-    xtts: XTTSConfig
+    tts: TTSConfig
     app: AppConfig
 
 

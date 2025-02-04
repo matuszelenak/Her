@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 
 export const useServiceHealth = () => {
     const [status, setStatus] = useState<DependencyStatus>({
-        xtts: false,
-        whisper: false,
-        ollama: []
+        tts: undefined,
+        stt: undefined,
+        llm: []
     })
 
     const {sendJsonMessage} = useWebSocket(

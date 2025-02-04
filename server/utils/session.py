@@ -27,8 +27,6 @@ class Session:
 
     user_speaking_status: Tuple[bool, datetime.datetime] = (False, None)
     prompt: Optional[str] = None
-    last_accepted_speech_id: Optional[str] = None
-    free_samples: int = 0
 
     speech_enabled: bool = True
 

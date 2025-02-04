@@ -1,12 +1,13 @@
 import asyncio
 import logging
 
-from providers.kokoro import generate_audio
+from providers import providers
 from utils.session import Session
 
 logger = logging.getLogger(__name__)
 
 async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
+    kokoro = providers['tts']
     try:
         while True:
             logger.info('Awaiting TTS queue')
@@ -18,16 +19,13 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
             if not sentence:
                 continue
 
-            # if not xtts_status():
-            #     continue
-
             if not session.speech_enabled:
                 continue
 
 
             logger.warning(f'Submitting for TTS {sentence}')
 
-            audio_filename = await generate_audio(session, sentence)
+            audio_filename = await kokoro.generate_audio(sentence, session.chat.config.tts.voice)
 
             await session.client_socket.send_json({
                 'type': 'speech_id',
