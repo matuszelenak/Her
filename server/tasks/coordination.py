@@ -7,7 +7,7 @@ from utils.session import Session
 logger = logging.getLogger(__name__)
 
 
-def trigger_llm(session: Session, received_speech_queue: asyncio.Queue):
+def trigger_llm(session: Session):
     if session.tts_task is not None and not session.tts_task.done():
         session.tts_task.cancel()
         session.tts_task = None

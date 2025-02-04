@@ -11,9 +11,9 @@
     "model": "medium.en",
     "language": "en"
   },
-  "xtts": {
-    "voice": "aloy.wav",
-    "language": "en"
+  "tts": {
+    "backend": "kokoro",
+    "voice": "bf_isabella"
   },
   "app": {
     "prevalidate_prompt": true,

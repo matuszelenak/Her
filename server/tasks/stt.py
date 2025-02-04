@@ -1,11 +1,10 @@
 import asyncio
 import json
 import logging
+import os
 
-# import scipy
 import websockets
 
-from utils.constants import WHISPER_API_URL
 from utils.session import Session
 
 logger = logging.getLogger(__name__)
@@ -13,10 +12,10 @@ logger = logging.getLogger(__name__)
 
 async def stt_sender(session: Session, received_speech_queue: asyncio.Queue):
     receiver_task = None
+    whisper_url = os.environ.get('WHISPER_API_URL')
     try:
-        async for stt_socket in websockets.connect(WHISPER_API_URL):
+        async for stt_socket in websockets.connect(f'ws://{whisper_url}/transcribe'):
             receiver_task = asyncio.create_task(stt_receiver(session, stt_socket))
-
             try:
                 while True:
                     samples = await received_speech_queue.get()

@@ -25,7 +25,7 @@ import { useDelayedInput } from "../utils/useDelayedInput.ts";
 import { useServiceHealth } from "../hooks/useServiceHealth.ts";
 
 
-const languages = ['cs', 'en']
+// const languages = ['cs', 'en']
 
 
 export const DependencyToolbar = ({
@@ -47,8 +47,8 @@ export const DependencyToolbar = ({
     const [ctxLength, rtCtxLength, setRTCtxLength] = useDelayedInput<number | null>(config.ollama.ctx_length, 200)
     const [sysPrompt, rtSystemPrompt, setRTSystemPrompt] = useDelayedInput<string | null>(config.ollama.system_prompt, 200)
     const [tools, setTools] = useState<string[]>(config.ollama.tools)
-    const [voice, setVoice] = useState(config.xtts.voice)
-    const [xttsLang, setXttsLang] = useState(config.xtts.language)
+    const [voice, setVoice] = useState(config.tts.voice)
+    // const [xttsLang, setXttsLang] = useState(config.tts.language)
 
     const status = useServiceHealth()
 
@@ -60,8 +60,8 @@ export const DependencyToolbar = ({
         setRTSystemPrompt(config.ollama.system_prompt)
         setTools(config.ollama.tools)
 
-        setVoice(config.xtts.voice)
-        setXttsLang(config.xtts.language)
+        setVoice(config.tts.voice)
+        // setXttsLang(config.tts.language)
     }, [config]);
 
 
@@ -94,16 +94,16 @@ export const DependencyToolbar = ({
         queryFn: async () => axiosDefault({
             url: '/models',
             method: 'get'
-        }).then(({data}) => data as OllamaModel[])
+        }).then(({data}) => data as OllamaModel[]),
     })
 
     const {data: voices} = useQuery({
         queryKey: ['voices'],
         queryFn: async () => axiosDefault({
-            url: '/xtts',
+            url: '/voices',
             method: 'get'
-        }).then(({data}) => data.voices as string[]),
-        enabled: status.xtts,
+        }).then(({data}) => data as string[]),
+        enabled: status.tts == 'healthy',
         initialData: []
     })
 
@@ -124,7 +124,7 @@ export const DependencyToolbar = ({
             <Paper elevation={1} sx={{padding: 2, margin: 2}}>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography variant="h6">Whisper</Typography>
-                    <Button disabled={!status.whisper} variant="outlined" onClick={() => {
+                    <Button disabled={!status.stt} variant="outlined" onClick={() => {
                         vad.toggle()
                     }}>
                         {vad.listening ? "Stop listening" : "Start listening"}
@@ -142,7 +142,7 @@ export const DependencyToolbar = ({
                                     min={200}
                                     max={10000}
                                     step={100}
-                                    disabled={!status.whisper}
+                                    disabled={!status.stt}
                                     value={speech.confirmDelay}
                                     onChange={(_: Event, newValue: number | number[]) => speech.setConfirmDelay(newValue as number)}
                                 />
@@ -173,7 +173,7 @@ export const DependencyToolbar = ({
             <Paper elevation={1} sx={{padding: 2, margin: 2}}>
                 <Typography variant="h6">Ollama</Typography>
 
-                {status.ollama && <Stack direction='column' spacing={2} marginTop={1}>
+                {status.llm !== null && <Stack direction='column' spacing={2} marginTop={1}>
                     <FormControl>
                         <InputLabel id="model-select-label">Model</InputLabel>
                         <Select
@@ -191,7 +191,7 @@ export const DependencyToolbar = ({
                             <MenuItem key={'none'} value={'none'}></MenuItem>
                             {models.map(({model}) => (
                                 <MenuItem key={model}
-                                          value={model}>{status.ollama?.includes(model) ? '[loaded]' : ''} {model}</MenuItem>
+                                          value={model}>{status.llm?.includes(model) ? '[loaded]' : ''} {model}</MenuItem>
                             ))}
                         </Select>
                     </FormControl>
@@ -302,14 +302,14 @@ export const DependencyToolbar = ({
             <Paper elevation={1} sx={{padding: 2, margin: 2}}>
                 <Stack direction="row" justifyContent="space-between" sx={{margin: 1}}>
                     <Typography variant="h6">XTTS</Typography>
-                    <Button variant="outlined" disabled={!status.xtts} onClick={() => {
+                    <Button variant="outlined" disabled={!status.tts} onClick={() => {
                         speech.toggleSpeaking()
                     }}>
                         {speech.speaking ? "Disable speech" : "Enable speech"}
                     </Button>
                 </Stack>
 
-                {status.xtts && <Stack direction='column' spacing={2} marginTop={1}>
+                {status.tts && <Stack direction='column' spacing={2} marginTop={1}>
                     <FormControl>
                         <InputLabel id="voice-select-label">Voice</InputLabel>
                         <Select
@@ -321,7 +321,7 @@ export const DependencyToolbar = ({
                             value={voice}
                             onChange={(e) => {
                                 setVoice(e.target.value)
-                                setConfigValue('xtts.voice', e.target.value)
+                                setConfigValue('tts.voice', e.target.value)
                             }}
                         >
                             {voices.map((voice) => (
@@ -330,26 +330,26 @@ export const DependencyToolbar = ({
                         </Select>
                     </FormControl>
 
-                    <FormControl>
-                        <InputLabel id="language-select-label">Language</InputLabel>
-                        <Select
-                            sx={{minWidth: 300}}
-                            variant='outlined'
-                            labelId="language-select-label"
-                            id="language-select"
-                            label='Language'
-                            value={xttsLang}
-                            onChange={(e) => {
-                                setXttsLang(e.target.value as 'en' | 'cs')
-                                setConfigValue('xtts.language', e.target.value)
-                            }
-                            }
-                        >
-                            {languages.map((lang) => (
-                                <MenuItem key={lang} value={lang}>{lang}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
+                    {/*<FormControl>*/}
+                    {/*    <InputLabel id="language-select-label">Language</InputLabel>*/}
+                    {/*    <Select*/}
+                    {/*        sx={{minWidth: 300}}*/}
+                    {/*        variant='outlined'*/}
+                    {/*        labelId="language-select-label"*/}
+                    {/*        id="language-select"*/}
+                    {/*        label='Language'*/}
+                    {/*        value={xttsLang}*/}
+                    {/*        onChange={(e) => {*/}
+                    {/*            setXttsLang(e.target.value as 'en' | 'cs')*/}
+                    {/*            setConfigValue('tts.language', e.target.value)*/}
+                    {/*        }*/}
+                    {/*        }*/}
+                    {/*    >*/}
+                    {/*        {languages.map((lang) => (*/}
+                    {/*            <MenuItem key={lang} value={lang}>{lang}</MenuItem>*/}
+                    {/*        ))}*/}
+                    {/*    </Select>*/}
+                    {/*</FormControl>*/}
                 </Stack>}
             </Paper>
         </>

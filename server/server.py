@@ -4,82 +4,31 @@ import logging
 from datetime import datetime
 from uuid import uuid4
 
-import httpx
 import starlette
 from fastapi import FastAPI, WebSocket, Depends
-from fastapi.encoders import jsonable_encoder
-from ollama import AsyncClient
-from sqlalchemy import select, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import load_only
-from starlette.responses import FileResponse
 
 from db.models import Chat
 from db.session import get_db
+from endpoints.audio import audio_router
+from endpoints.chat import chat_router
+from endpoints.settings import settings_router
+from providers import providers
 from tasks.coordination import trigger_llm
 from tasks.stt import stt_sender
 from utils.configuration import get_previous_or_default_config
-from utils.constants import OLLAMA_API_URL, XTTS2_API_URL
-from utils.health import ollama_status, xtts_status, whisper_status
 from utils.session import Session
 from utils.validation import should_agent_respond
+
 
 app = FastAPI()
 
 logger = logging.getLogger(__name__)
 logger.setLevel('INFO')
 
-
-@app.get('/models')
-async def get_models():
-    models = (await AsyncClient(OLLAMA_API_URL).list())['models']
-
-    return sorted(models, key=lambda m: m['model'])
-
-
-@app.get('/xtts')
-async def get_xtts():
-    res = {}
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(f'{XTTS2_API_URL}/api/voices')
-        res['voices'] = sorted(resp.json()['voices'])
-
-        return res
-
-
-@app.get('/chats')
-async def get_chats(db: AsyncSession = Depends(get_db)):
-    query = select(Chat).options(load_only(Chat.id, Chat.started_at, Chat.header)).order_by(desc('started_at'))
-
-    result = await db.execute(query)
-    result = result.scalars()
-
-    return jsonable_encoder(list(result))
-
-
-@app.get('/chat/{chat_id}')
-async def get_chat(chat_id: str, db: AsyncSession = Depends(get_db)):
-    query = select(Chat).filter(Chat.id == chat_id)
-    result = await db.execute(query)
-    return jsonable_encoder(result.scalar())
-
-
-@app.delete('/chat/{chat_id}')
-async def get_chats(chat_id: str, db: AsyncSession = Depends(get_db)):
-    query = delete(Chat).filter(Chat.id == chat_id)
-    await db.execute(query)
-    await db.commit()
-    return {'id': chat_id}
-
-
-@app.get('/tools')
-async def get_tools():
-    return ['get_ip_address_def', 'get_current_moon_phase']
-
-
-@app.get('/audio/{uuid}')
-async def get_audio(uuid: str):
-    return FileResponse(f'/tts_output/{uuid}', media_type='audio/wav')
+app.include_router(chat_router)
+app.include_router(settings_router)
+app.include_router(audio_router)
 
 
 @app.websocket("/ws/health")
@@ -90,12 +39,11 @@ async def health_endpoint(websocket: WebSocket):
         while True:
             await websocket.receive_json()
             await websocket.send_json({
-                'ollama': ollama_status(),
-                'xtts': xtts_status(),
-                'whisper': whisper_status()
+                provider_name: await p.health_status() for provider_name, p in providers.items()
             })
     except starlette.websockets.WebSocketDisconnect:
         pass
+
 
 @app.websocket("/ws/chat")
 async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
@@ -147,7 +95,7 @@ async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)
                     warrants_response = await should_agent_respond(session)
 
                     if warrants_response:
-                        trigger_llm(session, received_speech_queue)
+                        trigger_llm(session)
                     else:
                         await session.client_socket.send_json({
                             'type': 'stt_output_invalidation'
@@ -161,7 +109,7 @@ async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)
                     'text': data['prompt']
                 })
 
-                trigger_llm(session, received_speech_queue)
+                trigger_llm(session)
 
             elif data['event'] == 'speech_toggle':
                 session.speech_enabled = data['value']

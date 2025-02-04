@@ -7,7 +7,7 @@ export type ChatConfiguration = {
         system_prompt: string
         tools: string[]
     },
-    xtts: {
+    tts: {
         voice: string
         language: 'en' | 'cs'
     },
@@ -37,9 +37,9 @@ export type Token = {
 
 
 export type DependencyStatus = {
-    whisper: boolean
-    xtts: boolean
-    ollama: string[] | null
+    stt: 'healthy' | undefined
+    tts: 'healthy' | undefined
+    llm: string[] | null
 }
 
 
