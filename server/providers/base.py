@@ -8,5 +8,5 @@ class TextToSpeechProvider(BaseProvider):
     async def get_voices(self):
         raise NotImplementedError
 
-    async def generate_audio(self, text: str, voice: str):
+    async def generate_audio(self, text: str, voice: str) -> bytearray:
         raise NotImplementedError

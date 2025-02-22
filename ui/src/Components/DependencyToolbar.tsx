@@ -1,4 +1,4 @@
-import { ChatConfiguration, OllamaModel } from "../types.ts";
+import { ChatConfiguration, LLMModel } from "../types.ts";
 import {
     Box,
     Button,
@@ -41,24 +41,22 @@ export const DependencyToolbar = ({
         setConfirmDelay: Dispatch<SetStateAction<number>>
     }
 }) => {
-    const [model, setModel] = useState(config.ollama.model)
-    const [temperature, rtTemperature, setRTTemperature] = useDelayedInput<number | null>(config.ollama.temperature, 200)
-    const [repeatPenalty, rtRepeatPenalty, setRTRepeatPenalty] = useDelayedInput<number | null>(config.ollama.repeat_penalty, 200)
-    const [ctxLength, rtCtxLength, setRTCtxLength] = useDelayedInput<number | null>(config.ollama.ctx_length, 200)
-    const [sysPrompt, rtSystemPrompt, setRTSystemPrompt] = useDelayedInput<string | null>(config.ollama.system_prompt, 200)
-    const [tools, setTools] = useState<string[]>(config.ollama.tools)
+    const [model, setModel] = useState(config.llm.model)
+    const [temperature, rtTemperature, setRTTemperature] = useDelayedInput<number | null>(config.llm.temperature, 200)
+    const [repeatPenalty, rtRepeatPenalty, setRTRepeatPenalty] = useDelayedInput<number | null>(config.llm.repeat_penalty, 200)
+    const [sysPrompt, rtSystemPrompt, setRTSystemPrompt] = useDelayedInput<string | null>(config.llm.system_prompt, 200)
+    const [tools, setTools] = useState<string[]>(config.llm.tools)
     const [voice, setVoice] = useState(config.tts.voice)
     // const [xttsLang, setXttsLang] = useState(config.tts.language)
 
     const status = useServiceHealth()
 
     useEffect(() => {
-        setModel(config.ollama.model)
-        setRTTemperature(config.ollama.temperature)
-        setRTRepeatPenalty(config.ollama.repeat_penalty)
-        setRTCtxLength(config.ollama.ctx_length)
-        setRTSystemPrompt(config.ollama.system_prompt)
-        setTools(config.ollama.tools)
+        setModel(config.llm.model)
+        setRTTemperature(config.llm.temperature)
+        setRTRepeatPenalty(config.llm.repeat_penalty)
+        setRTSystemPrompt(config.llm.system_prompt)
+        setTools(config.llm.tools)
 
         setVoice(config.tts.voice)
         // setXttsLang(config.tts.language)
@@ -67,25 +65,19 @@ export const DependencyToolbar = ({
 
     useEffect(() => {
         if (temperature !== null) {
-            setConfigValue('ollama.temperature', temperature)
+            setConfigValue('llm.temperature', temperature)
         }
     }, [temperature]);
 
     useEffect(() => {
-        if (ctxLength !== null) {
-            setConfigValue('ollama.ctx_length', ctxLength)
-        }
-    }, [ctxLength]);
-
-    useEffect(() => {
         if (repeatPenalty !== null) {
-            setConfigValue('ollama.repeat_penalty', repeatPenalty)
+            setConfigValue('llm.repeat_penalty', repeatPenalty)
         }
     }, [repeatPenalty]);
 
     useEffect(() => {
         if (sysPrompt !== null) {
-            setConfigValue('ollama.system_prompt', sysPrompt)
+            setConfigValue('llm.system_prompt', sysPrompt)
         }
     }, [sysPrompt]);
 
@@ -94,7 +86,7 @@ export const DependencyToolbar = ({
         queryFn: async () => axiosDefault({
             url: '/models',
             method: 'get'
-        }).then(({data}) => data as OllamaModel[]),
+        }).then(({data}) => data as LLMModel[]),
     })
 
     const {data: voices} = useQuery({
@@ -171,7 +163,7 @@ export const DependencyToolbar = ({
             </Paper>
 
             <Paper elevation={1} sx={{padding: 2, margin: 2}}>
-                <Typography variant="h6">Ollama</Typography>
+                <Typography variant="h6">LLM</Typography>
 
                 {status.llm !== null && <Stack direction='column' spacing={2} marginTop={1}>
                     <FormControl>
@@ -185,13 +177,13 @@ export const DependencyToolbar = ({
                             value={model}
                             onChange={(e) => {
                                 setModel(e.target.value)
-                                setConfigValue('ollama.model', e.target.value)
+                                setConfigValue('llm.model', e.target.value)
                             }}
                         >
                             <MenuItem key={'none'} value={'none'}></MenuItem>
-                            {models.map(({model}) => (
-                                <MenuItem key={model}
-                                          value={model}>{status.llm?.includes(model) ? '[loaded]' : ''} {model}</MenuItem>
+                            {models.map(({id}) => (
+                                <MenuItem key={id}
+                                          value={id}>{status.llm?.includes(id) ? '[loaded]' : ''} {id}</MenuItem>
                             ))}
                         </Select>
                     </FormControl>
@@ -200,31 +192,6 @@ export const DependencyToolbar = ({
                         onChange={(e) => setRTSystemPrompt(e.target.value)}
                         multiline
                     />
-                    <Box>
-                        <Typography id="input-slider" gutterBottom>
-                            Context length
-                        </Typography>
-                        <Grid container spacing={2} sx={{alignItems: 'center'}}>
-                            <Grid item xs>
-                                <Slider step={1024} value={rtCtxLength || 1024}
-                                        onChange={(_, v) => setRTCtxLength(v as number)}
-                                        min={1024} max={32768}/>
-                            </Grid>
-                            <Grid item>
-                                <Input
-                                    size="small"
-                                    value={rtCtxLength}
-                                    onChange={(e) => setRTCtxLength(Number.parseInt(e.target.value))}
-                                    inputProps={{
-                                        min: 1024,
-                                        max: 32768,
-                                        step: 1024,
-                                        type: 'number'
-                                    }}
-                                />
-                            </Grid>
-                        </Grid>
-                    </Box>
                     <Box>
                         <Typography id="input-slider" gutterBottom>
                             Temperature
@@ -283,7 +250,7 @@ export const DependencyToolbar = ({
                             value={tools}
                             onChange={(e) => {
                                 setTools(e.target.value as string[])
-                                setConfigValue('ollama.tools', e.target.value)
+                                setConfigValue('llm.tools', e.target.value)
                             }}
                             input={<OutlinedInput label="Tools"/>}
                             renderValue={(selected) => selected.join(', ')}

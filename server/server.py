@@ -15,7 +15,7 @@ from endpoints.chat import chat_router
 from endpoints.settings import settings_router
 from providers import providers
 from tasks.coordination import trigger_llm
-from tasks.stt import stt_sender
+from tasks.stt import stt_task
 from utils.configuration import get_previous_or_default_config
 from utils.session import Session
 from utils.validation import should_agent_respond
@@ -82,7 +82,7 @@ async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)
             elif data['event'] == 'samples':
                 session.user_speaking_status = (True, datetime.now())
                 if session.stt_task is None:
-                    session.stt_task = asyncio.create_task(stt_sender(session, received_speech_queue))
+                    session.stt_task = asyncio.create_task(stt_task(session, received_speech_queue))
                 await received_speech_queue.put(data['data'])
 
             elif data['event'] == 'speech_end':

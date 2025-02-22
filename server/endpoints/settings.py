@@ -1,16 +1,19 @@
-from fastapi import APIRouter
-from ollama import AsyncClient
+from typing import List
 
-from utils.constants import OLLAMA_API_URL
+from fastapi import APIRouter
+from openai.types import Model
+
+from providers import OpenAIProvider, providers
 
 settings_router = APIRouter()
 
 
 @settings_router.get('/models')
 async def get_models():
-    models = (await AsyncClient(OLLAMA_API_URL).list())['models']
+    llm_provider: OpenAIProvider = providers['llm']
+    models: List[Model] = (await llm_provider.models.list()).data
 
-    return sorted(models, key=lambda m: m['model'])
+    return sorted(models, key=lambda m: m.id)
 
 
 @settings_router.get('/tools')
