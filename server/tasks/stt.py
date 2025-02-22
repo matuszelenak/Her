@@ -1,64 +1,27 @@
 import asyncio
-import json
 import logging
-import os
 
-import websockets
-
+from providers import providers, WhisperProvider
 from utils.session import Session
 
 logger = logging.getLogger(__name__)
 
 
-async def stt_sender(session: Session, received_speech_queue: asyncio.Queue):
-    receiver_task = None
-    whisper_url = os.environ.get('WHISPER_API_URL')
-    try:
-        async for stt_socket in websockets.connect(f'ws://{whisper_url}/transcribe'):
-            receiver_task = asyncio.create_task(stt_receiver(session, stt_socket))
-            try:
-                while True:
-                    samples = await received_speech_queue.get()
-                    if samples is None:
-                        await stt_socket.send(json.dumps({
-                            'commit': True
-                        }))
-                    else:
-                        await stt_socket.send(json.dumps({
-                            'samples': samples
-                        }))
-            except websockets.exceptions.ConnectionClosedError:
-                logger.warning('STT socket disconnected, will attempt new connection')
+async def stt_task(session: Session, received_speech_queue: asyncio.Queue):
+    stt_provider: WhisperProvider = providers['stt']
 
+    prompt_words = []
+    async for segment_message in stt_provider.continuous_transcription(received_speech_queue):
+        await session.client_socket.send_json({
+            'type': 'stt_output',
+            'segment': segment_message
+        })
 
-    except asyncio.CancelledError:
-        logger.warning('STT Task cancelled')
-    except Exception as e:
-        logger.error('STT task exception', exc_info=True)
-        logger.error(str(e))
-    finally:
-        if receiver_task is not None:
-            receiver_task.cancel()
+        if segment_message.get('complete'):
+            prompt_words.extend(segment_message['words'])
 
+        if segment_message.get('final'):
+            session.prompt = ' '.join(prompt_words)
+            logger.warning(f'Setting prompt to {session.prompt}')
 
-async def stt_receiver(session: Session, socket):
-    while True:
-        prompt_words = []
-
-        async for message in socket:
-            resp = json.loads(message)
-            logger.warning(resp)
-
-            await session.client_socket.send_json({
-                'type': 'stt_output',
-                'segment': resp
-            })
-
-            if resp.get('complete'):
-                prompt_words.extend(resp['words'])
-
-            if resp.get('final'):
-                session.prompt = ' '.join(prompt_words)
-                logger.warning(f'Setting prompt to {session.prompt}')
-
-                break
+            prompt_words = []

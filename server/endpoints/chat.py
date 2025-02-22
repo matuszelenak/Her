@@ -1,3 +1,5 @@
+import os.path
+
 from fastapi import Depends, APIRouter
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, desc, delete
@@ -32,4 +34,8 @@ async def delete_chat(chat_id: str, db: AsyncSession = Depends(get_db)):
     query = delete(Chat).filter(Chat.id == chat_id)
     await db.execute(query)
     await db.commit()
+
+    if os.path.exists(f'/tts_output/{chat_id}'):
+        os.rmdir(f'/tts_output/{chat_id}')
+
     return {'id': chat_id}

@@ -31,9 +31,9 @@ export const usePlayer = () => {
         return ret
     }
 
-    const queueAudio = async (audioId: string) => {
+    const queueAudio = async (audioPath: string) => {
         const { data } = await axiosDefault({
-            url: `/audio/${audioId}`,
+            url: `/audio/${audioPath}`,
             responseType: "arraybuffer",
             headers: {
                 "Content-Type": "audio/wav"
@@ -44,7 +44,7 @@ export const usePlayer = () => {
 
         addToQueue({
             buffer: arrayBuffer,
-            audioId: audioId
+            audioId: audioPath
         })
         setPlayerState((prev) => {
             if (prev == "inactive") {

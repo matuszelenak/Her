@@ -63,7 +63,7 @@ class Session:
 
         self.chat.messages.append(message | {
             'time': datetime.datetime.now().timestamp(),
-            'model': self.chat.config.ollama.model
+            'model': self.chat.config.llm.model
         })
         flag_modified(self.chat, 'messages')
         await self.db.commit()

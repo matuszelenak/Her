@@ -10,9 +10,8 @@ class WhisperConfig(BaseModel):
     language: Literal['en', 'cs']
 
 
-class OllamaConfig(BaseModel):
+class LLMConfig(BaseModel):
     model: str
-    ctx_length: int
     system_prompt: str
     repeat_penalty: float
     temperature: float
@@ -30,7 +29,7 @@ class AppConfig(BaseModel):
 
 
 class SessionConfig(BaseModel):
-    ollama: OllamaConfig
+    llm: LLMConfig
     whisper: WhisperConfig
     tts: TTSConfig
     app: AppConfig

@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime
 
-from ollama import Message, ChatResponse
+from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
 
 from tasks.tts import tts_task
 from utils.llm_response import generate_llm_response, strip_markdown
@@ -37,15 +37,15 @@ async def llm_query_task(session: Session, prompt: str):
 
             async for resp_type, content in generate_llm_response(session, prompt):
                 if resp_type == 'token':
-                    content: ChatResponse
+                    content: Choice
                     await session.client_socket.send_json({
                         'type': 'token',
                         'token': {
                             'message': {
-                                'role': content.message.role,
-                                'content': content.message.content
+                                'role': content.delta.role,
+                                'content': content.delta.content
                             },
-                            'done': content.done
+                            'done': content.finish_reason is not None
                         }
                     })
 
@@ -59,7 +59,7 @@ async def llm_query_task(session: Session, prompt: str):
                     printable_response += content
 
                 elif resp_type == 'tool_call':
-                    content: Message.ToolCall
+                    content: ChoiceDeltaToolCall
                     fn = tools.get(content.function.name)
                     if fn:
                         tool_answers.append(fn(**content.function.arguments))

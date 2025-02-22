@@ -12,3 +12,4 @@ sqlalchemy[asyncio]
 alembic
 psycopg2
 asyncpg
+openai

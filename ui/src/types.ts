@@ -1,7 +1,6 @@
 export type ChatConfiguration = {
-    ollama: {
+    llm: {
         model: string
-        ctx_length: number
         temperature: number
         repeat_penalty: number
         system_prompt: string
@@ -21,9 +20,9 @@ export type ChatConfiguration = {
 }
 
 
-export type OllamaModel = {
-    model: string
-    size: number
+export type LLMModel = {
+    id: string
+    created: number
 }
 
 
@@ -63,7 +62,9 @@ export type WebsocketEvent = {
     config: ChatConfiguration
 } | {
     type: 'speech_id'
+    uuid: string
     filename: string
+    text: string
 } | {
     type: 'manual_prompt'
     text: string

@@ -16,7 +16,7 @@ class XTTSProvider(TextToSpeechProvider):
     def __init__(self, base_url):
         self.base_url = base_url
 
-    async def generate_audio(self, text, voice):
+    async def generate_audio(self, text, voice) -> bytearray:
         all_samples = np.array([], np.float32)
 
         _id = str(uuid.uuid4())
