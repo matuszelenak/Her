@@ -50,7 +50,7 @@ async def llm_query_task(session: Session, prompt: str):
                     })
 
                 elif resp_type == 'sentence':
-                    cleaned = await strip_markdown(content)
+                    cleaned = strip_markdown(content)
 
                     logger.info(f'Adding to TTS queue {cleaned}')
                     if session.speech_enabled:

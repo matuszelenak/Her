@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
     kokoro: TextToSpeechProvider = providers['tts']
     try:
+        await session.client_socket.send_json({
+            'type': 'speech_start'
+        })
+        order = 0
         while True:
             logger.info('Awaiting TTS queue')
             sentence = await llm_response_queue.get()
@@ -41,8 +45,10 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
             await session.client_socket.send_json({
                 'type': 'speech_id',
                 'filename': f'{session.chat.id}/{_id}',
+                'order': order,
                 'text': sentence
             })
+            order += 1
     except asyncio.CancelledError:
         logger.info('TTS task cancelled')
 

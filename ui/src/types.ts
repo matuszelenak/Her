@@ -41,31 +41,69 @@ export type DependencyStatus = {
     llm: string[] | null
 }
 
+export enum WebsocketEventType {
+    TOKEN = 'token',
+    STT_OUTPUT = 'stt_output',
+    STT_OUTPUT_INVALIDATION = 'stt_output_invalidation',
+    SPEECH_START = 'speech_start',
+    SPEECH_FILE = 'speech_id',
+    MANUAL_PROMPT = 'manual_prompt',
+    CONFIG = 'config',
+    NEW_CHAT = 'new_chat'
+}
 
-export type WebsocketEvent = {
-    type: 'token'
+
+export interface TokenEvent {
+    type: WebsocketEventType.TOKEN
     token: Token
-} | {
-    type: 'stt_output'
+}
+
+export interface STTOutputEvent {
+    type: WebsocketEventType.STT_OUTPUT
     segment: {
         words: string[],
         complete: boolean
         id: number
     }
-} | {
-    type: 'new_chat'
-    chat_id: string
-} | {
-    type: 'stt_output_invalidation'
-} | {
-    type: 'config'
-    config: ChatConfiguration
-} | {
-    type: 'speech_id'
+}
+
+export interface STTOutputInvalidationEvent {
+    type: WebsocketEventType.STT_OUTPUT_INVALIDATION
+}
+
+export interface SpeechStartEvent {
+    type: WebsocketEventType.SPEECH_START
+}
+
+export interface SpeechFileEvent {
+    type: WebsocketEventType.SPEECH_FILE
     uuid: string
     filename: string
     text: string
-} | {
-    type: 'manual_prompt'
+    order: number
+}
+
+export interface NewChatEvent {
+    type: WebsocketEventType.NEW_CHAT
+    chat_id: string
+}
+
+export interface ConfigEvent {
+    type: WebsocketEventType.CONFIG
+    config: ChatConfiguration
+}
+
+export interface ManualPromptEvent {
+    type: WebsocketEventType.MANUAL_PROMPT
     text: string
 }
+
+export type WebSocketEvent =
+    TokenEvent
+    | STTOutputEvent
+    | STTOutputInvalidationEvent
+    | SpeechFileEvent
+    | SpeechStartEvent
+    | NewChatEvent
+    | ConfigEvent
+    | ManualPromptEvent

@@ -59,7 +59,7 @@ async def generate_llm_response(session: Session, prompt: str) -> AsyncGenerator
 
 
 
-async def strip_markdown(sentence: str):
+def strip_markdown(sentence: str):
     html = markdown(sentence)
 
     html = re.sub(r'<pre>(.*?)</pre>', ' ', html)

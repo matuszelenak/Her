@@ -6,7 +6,7 @@ import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
 import { arrayBufferToBase64 } from "../utils/encoding.ts";
 import { useMicVAD } from "../utils/vad/useMic.tsx";
-import { ChatConfiguration, Token, WebsocketEvent } from "../types.ts";
+import { ChatConfiguration, Token, WebSocketEvent, WebsocketEventType } from "../types.ts";
 import { ChatList } from "../Components/ChatList.tsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { axiosDefault } from "../api.ts";
@@ -73,48 +73,63 @@ export const Chat = () => {
         `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws/chat`,
         {
             onMessage: async (event: WebSocketEventMap['message']) => {
-                const message = JSON.parse(event.data) as WebsocketEvent
+                const message = JSON.parse(event.data) as WebSocketEvent
 
-                if (message.type == 'config') {
-                    setConfig(message.config)
-                }
+                console.log(`Received websocket msg`)
+                console.log(message)
 
-                if (message.type == 'speech_id') {
-                    await queueAudio(message.filename)
-                }
-
-                if (message.type == 'token') {
-                    if (userMessage.completedWords.length > 0) {
-                        setMessages((prevState: Message[]) => [...prevState, {role: 'user', message: [renderUserMessage(userMessage)]}])
+                switch (message.type) {
+                    case WebsocketEventType.STT_OUTPUT_INVALIDATION:
+                        break;
+                    case WebsocketEventType.TOKEN:
+                        // if (userMessage.completedWords.length > 0) {
+                        //     setMessages((prevState: Message[]) => [...prevState, {
+                        //         role: 'user',
+                        //         message: [renderUserMessage(userMessage)]
+                        //     }])
+                        //     setUserMessage({
+                        //         completedWords: [],
+                        //         uncertainWords: []
+                        //     })
+                        // }
+                        // setAgentMessage((prevState) => ([...prevState, message.token]))
+                        break;
+                    case WebsocketEventType.STT_OUTPUT:
+                        audioPlayerStop()
+                        if (message.segment.complete) {
+                            setUserMessage((prev) => ({
+                                completedWords: [...prev.completedWords, ...message.segment.words],
+                                uncertainWords: []
+                            }))
+                        } else {
+                            setUserMessage((prev) => ({
+                                completedWords: prev.completedWords,
+                                uncertainWords: message.segment.words
+                            }))
+                        }
+                        break;
+                    case WebsocketEventType.SPEECH_FILE:
+                        await queueAudio(message)
+                        break;
+                    case WebsocketEventType.SPEECH_START:
+                        audioPlayerStop()
+                        break;
+                    case WebsocketEventType.NEW_CHAT:
+                        navigate(`/chat/${message.chat_id}`)
+                        await queryClient.invalidateQueries({queryKey: ['chat_list']})
+                        break;
+                    case WebsocketEventType.CONFIG:
+                        setConfig(message.config)
+                        break;
+                    case WebsocketEventType.MANUAL_PROMPT:
                         setUserMessage({
-                            completedWords: [],
+                            completedWords: [message.text],
                             uncertainWords: []
                         })
-                    }
-                    setAgentMessage((prevState) => ([...prevState, message.token]))
+                        break;
                 }
 
-                if (message.type == 'stt_output') {
-                    audioPlayerStop()
-                    if (message.segment.complete) {
-                        setUserMessage((prev) => ({
-                            completedWords: [...prev.completedWords, ...message.segment.words],
-                            uncertainWords: []
-                        }))
-                    } else {
-                        setUserMessage((prev) => ({
-                            completedWords: prev.completedWords,
-                            uncertainWords:  message.segment.words
-                        }))
-                    }
-                }
 
-                if (message.type == 'manual_prompt') {
-                    setUserMessage({
-                        completedWords: [message.text],
-                        uncertainWords: []
-                    })
-                }
                 // if (message.type == 'stt_output_invalidation') {
                 //     if (userMessage !== "") {
                 //         setMessages((prevState: Message[]) => [...prevState, {
@@ -125,10 +140,6 @@ export const Chat = () => {
                 //     setUserMessage("")
                 // }
 
-                if (message.type == 'new_chat') {
-                    navigate(`/chat/${message.chat_id}`)
-                    await queryClient.invalidateQueries({queryKey: ['chat_list']})
-                }
             },
             reconnectAttempts: 1000,
             reconnectInterval: 2000,
@@ -170,7 +181,7 @@ export const Chat = () => {
     const [speechConfirmDelay, setSpeechConfirmDelay] = useState(2000)
 
     const vad = useMicVAD({
-        startOnLoad: true,
+        startOnLoad: false,
         onSpeechFrames: (audio: Float32Array) => {
             sendJsonMessage({
                 'event': 'samples',
