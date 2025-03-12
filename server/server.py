@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 from datetime import datetime
 from uuid import uuid4
 
@@ -12,22 +11,19 @@ from db.models import Chat
 from db.session import get_db
 from endpoints.audio import audio_router
 from endpoints.chat import chat_router
-from endpoints.settings import settings_router
 from providers import providers
 from tasks.coordination import trigger_llm
 from tasks.stt import stt_task
 from utils.configuration import get_previous_or_default_config
+from utils.log import get_logger
 from utils.session import Session
 from utils.validation import should_agent_respond
 
-
 app = FastAPI()
 
-logger = logging.getLogger(__name__)
-logger.setLevel('INFO')
+logger = get_logger(__name__)
 
 app.include_router(chat_router)
-app.include_router(settings_router)
 app.include_router(audio_router)
 
 
@@ -49,7 +45,7 @@ async def health_endpoint(websocket: WebSocket):
 async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
     await websocket.accept()
 
-    logger.warning(f"New client connected")
+    logger.debug(f"New client connected")
 
     session_id = str(uuid4())
     config = await get_previous_or_default_config(db)
@@ -86,7 +82,7 @@ async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)
                 await received_speech_queue.put(data['data'])
 
             elif data['event'] == 'speech_end':
-                logger.info('Speak end')
+                logger.debug('Speak end')
                 session.user_speaking_status = (False, datetime.now())
                 await received_speech_queue.put(None)
 
@@ -113,7 +109,7 @@ async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)
 
             elif data['event'] == 'speech_toggle':
                 session.speech_enabled = data['value']
-                logger.warning(f'Speech {session.speech_enabled}')
+                logger.debug(f'Speech {session.speech_enabled}')
 
             elif data['event'] == 'config':
                 await session.set_config_from_event(data['field'], data['value'])
@@ -129,5 +125,5 @@ async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)
         logger.error(str(e))
 
     finally:
-        logger.warning(f'Terminating client')
+        logger.debug(f'Terminating client')
         session.terminate()

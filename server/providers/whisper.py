@@ -1,13 +1,13 @@
 import asyncio
 import json
-import logging
 
 import httpx
 import websockets
 
 from providers.base import BaseProvider
+from utils.log import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class WhisperProvider(BaseProvider):

@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-import logging
 from dataclasses import dataclass
 from typing import Optional, Tuple
 from uuid import uuid4
@@ -11,8 +10,9 @@ from sqlalchemy.orm.attributes import flag_modified
 from starlette.websockets import WebSocket
 
 from db.models import Chat
+from utils.log import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -54,21 +54,17 @@ class Session:
             await self.db.commit()
             await self.db.refresh(self.chat)
 
-            logger.warning(str(self.chat))
-
             await self.client_socket.send_json({
                 'type': 'new_chat',
                 'chat_id': str(self.chat.id)
             })
 
         self.chat.messages.append(message | {
-            'time': datetime.datetime.now().timestamp(),
-            'model': self.chat.config.llm.model
+            'time': datetime.datetime.now().timestamp()
         })
         flag_modified(self.chat, 'messages')
         await self.db.commit()
         await self.db.refresh(self.chat)
-        logger.warning(str(self.chat))
 
     async def set_config_from_event(self, field, value):
         curr = self.chat.config_db
@@ -83,4 +79,4 @@ class Session:
             await self.db.commit()
             await self.db.refresh(self.chat)
 
-        logger.warning(f'Changed config field {field} -> {value}')
+        logger.debug(f'Changed config field {field} -> {value}')

@@ -1,13 +1,14 @@
 import asyncio
-import logging
 import os.path
 from uuid import uuid4
 
 from providers import providers
 from providers.base import TextToSpeechProvider
+from utils.log import get_logger
 from utils.session import Session
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
 
 async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
     kokoro: TextToSpeechProvider = providers['tts']
@@ -17,7 +18,7 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
         })
         order = 0
         while True:
-            logger.info('Awaiting TTS queue')
+            logger.debug('Awaiting TTS queue')
             sentence = await llm_response_queue.get()
             if sentence is None:
                 break
@@ -29,8 +30,7 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
             if not session.speech_enabled:
                 continue
 
-
-            logger.warning(f'Submitting for TTS {sentence}')
+            logger.debug(f'Submitting for TTS {sentence}')
 
             audio_bytearray = await kokoro.generate_audio(sentence, session.chat.config.tts.voice)
 
@@ -50,7 +50,7 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
             })
             order += 1
     except asyncio.CancelledError:
-        logger.info('TTS task cancelled')
+        logger.debug('TTS task cancelled')
 
     except Exception as e:
         logger.error('Exception in TTS receiver', exc_info=True)

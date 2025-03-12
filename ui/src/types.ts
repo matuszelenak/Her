@@ -1,11 +1,4 @@
 export type ChatConfiguration = {
-    llm: {
-        model: string
-        temperature: number
-        repeat_penalty: number
-        system_prompt: string
-        tools: string[]
-    },
     tts: {
         voice: string
         language: 'en' | 'cs'
@@ -17,12 +10,6 @@ export type ChatConfiguration = {
     app: {
         prevalidate_prompt: boolean
     }
-}
-
-
-export type LLMModel = {
-    id: string
-    created: number
 }
 
 

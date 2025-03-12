@@ -1,15 +1,17 @@
-import logging
 import uuid
 from urllib.parse import urlencode
 
 import httpx
-import scipy
 import numpy as np
+import scipy
 
 from providers.base import TextToSpeechProvider
-from utils.constants import XTTS_OUTPUT_SAMPLING_RATE
+from utils.log import get_logger
 
-logger = logging.getLogger(__name__)
+XTTS_OUTPUT_SAMPLING_RATE = 24000
+
+
+logger = get_logger(__name__)
 
 
 class XTTSProvider(TextToSpeechProvider):

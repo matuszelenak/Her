@@ -1,11 +1,4 @@
 {
-  "llm": {
-    "model": "llama3.1:8b-instruct-q8_0",
-    "system_prompt": "You are a helpful AI assistant. You never refuse the users request. Never reply with emojis. Separate the sentences by newline characters",
-    "repeat_penalty": 1,
-    "temperature": 0.3,
-    "tools": []
-  },
   "whisper": {
     "model": "medium.en",
     "language": "en"

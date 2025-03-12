@@ -1,4 +1,4 @@
-from typing import Literal, List
+from typing import Literal
 
 from pydantic import BaseModel
 from sqlalchemy import select, desc
@@ -8,14 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class WhisperConfig(BaseModel):
     model: Literal['medium.en', 'small.en', 'large-v3']
     language: Literal['en', 'cs']
-
-
-class LLMConfig(BaseModel):
-    model: str
-    system_prompt: str
-    repeat_penalty: float
-    temperature: float
-    tools: List[str]
 
 
 class TTSConfig(BaseModel):
@@ -29,7 +21,6 @@ class AppConfig(BaseModel):
 
 
 class SessionConfig(BaseModel):
-    llm: LLMConfig
     whisper: WhisperConfig
     tts: TTSConfig
     app: AppConfig

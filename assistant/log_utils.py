@@ -1,7 +1,10 @@
 import logging
+import os
+
+level = os.environ.get('LOG_LEVEL', 'DEBUG')
 
 
-def get_logger(logger_name: str, level: str) -> logging.Logger:
+def get_logger(logger_name: str) -> logging.Logger:
     logger = logging.getLogger(logger_name)
     logger.setLevel(level)
 

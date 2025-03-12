@@ -1,4 +1,5 @@
 import os.path
+import shutil
 
 from fastapi import Depends, APIRouter
 from fastapi.encoders import jsonable_encoder
@@ -36,6 +37,6 @@ async def delete_chat(chat_id: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     if os.path.exists(f'/tts_output/{chat_id}'):
-        os.rmdir(f'/tts_output/{chat_id}')
+        shutil.rmtree(f'/tts_output/{chat_id}')
 
     return {'id': chat_id}

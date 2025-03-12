@@ -1,10 +1,10 @@
 import asyncio
-import logging
 
 from providers import providers, WhisperProvider
+from utils.log import get_logger
 from utils.session import Session
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def stt_task(session: Session, received_speech_queue: asyncio.Queue):
@@ -22,6 +22,6 @@ async def stt_task(session: Session, received_speech_queue: asyncio.Queue):
 
         if segment_message.get('final'):
             session.prompt = ' '.join(prompt_words)
-            logger.warning(f'Setting prompt to {session.prompt}')
+            logger.debug(f'Setting prompt to {session.prompt}')
 
             prompt_words = []

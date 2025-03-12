@@ -1,10 +1,10 @@
 import asyncio
-import logging
 
 from tasks.llm import llm_query_task
+from utils.log import get_logger
 from utils.session import Session
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def trigger_llm(session: Session):
@@ -19,6 +19,6 @@ def trigger_llm(session: Session):
     prompt = session.prompt
     session.prompt = None
 
-    logger.warning(f'Accepted prompt {prompt}')
+    logger.debug(f'Accepted prompt {prompt}')
 
     session.llm_task = asyncio.create_task(llm_query_task(session, prompt))

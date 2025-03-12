@@ -1,5 +1,0 @@
-import os
-
-OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL')
-
-XTTS_OUTPUT_SAMPLING_RATE = 24000

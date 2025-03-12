@@ -82,17 +82,17 @@ export const Chat = () => {
                     case WebsocketEventType.STT_OUTPUT_INVALIDATION:
                         break;
                     case WebsocketEventType.TOKEN:
-                        // if (userMessage.completedWords.length > 0) {
-                        //     setMessages((prevState: Message[]) => [...prevState, {
-                        //         role: 'user',
-                        //         message: [renderUserMessage(userMessage)]
-                        //     }])
-                        //     setUserMessage({
-                        //         completedWords: [],
-                        //         uncertainWords: []
-                        //     })
-                        // }
-                        // setAgentMessage((prevState) => ([...prevState, message.token]))
+                        if (userMessage.completedWords.length > 0) {
+                            setMessages((prevState: Message[]) => [...prevState, {
+                                role: 'user',
+                                message: [renderUserMessage(userMessage)]
+                            }])
+                            setUserMessage({
+                                completedWords: [],
+                                uncertainWords: []
+                            })
+                        }
+                        setAgentMessage((prevState) => ([...prevState, message.token]))
                         break;
                     case WebsocketEventType.STT_OUTPUT:
                         audioPlayerStop()

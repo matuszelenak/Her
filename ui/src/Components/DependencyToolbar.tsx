@@ -1,31 +1,23 @@
-import { ChatConfiguration, LLMModel } from "../types.ts";
+import { ChatConfiguration } from "../types.ts";
 import {
     Box,
     Button,
-    Checkbox,
     CircularProgress,
     FormControl,
     Grid,
     Input,
     InputLabel,
-    ListItemText,
     MenuItem,
-    OutlinedInput,
     Paper,
     Select,
     Slider,
     Stack,
-    TextField,
     Typography
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { axiosDefault } from "../api.ts";
 import { Dispatch, SetStateAction, useEffect, useState } from "react";
-import { useDelayedInput } from "../utils/useDelayedInput.ts";
 import { useServiceHealth } from "../hooks/useServiceHealth.ts";
-
-
-// const languages = ['cs', 'en']
 
 
 export const DependencyToolbar = ({
@@ -41,53 +33,15 @@ export const DependencyToolbar = ({
         setConfirmDelay: Dispatch<SetStateAction<number>>
     }
 }) => {
-    const [model, setModel] = useState(config.llm.model)
-    const [temperature, rtTemperature, setRTTemperature] = useDelayedInput<number | null>(config.llm.temperature, 200)
-    const [repeatPenalty, rtRepeatPenalty, setRTRepeatPenalty] = useDelayedInput<number | null>(config.llm.repeat_penalty, 200)
-    const [sysPrompt, rtSystemPrompt, setRTSystemPrompt] = useDelayedInput<string | null>(config.llm.system_prompt, 200)
-    const [tools, setTools] = useState<string[]>(config.llm.tools)
     const [voice, setVoice] = useState(config.tts.voice)
     // const [xttsLang, setXttsLang] = useState(config.tts.language)
 
     const status = useServiceHealth()
 
     useEffect(() => {
-        setModel(config.llm.model)
-        setRTTemperature(config.llm.temperature)
-        setRTRepeatPenalty(config.llm.repeat_penalty)
-        setRTSystemPrompt(config.llm.system_prompt)
-        setTools(config.llm.tools)
-
         setVoice(config.tts.voice)
         // setXttsLang(config.tts.language)
     }, [config]);
-
-
-    useEffect(() => {
-        if (temperature !== null) {
-            setConfigValue('llm.temperature', temperature)
-        }
-    }, [temperature]);
-
-    useEffect(() => {
-        if (repeatPenalty !== null) {
-            setConfigValue('llm.repeat_penalty', repeatPenalty)
-        }
-    }, [repeatPenalty]);
-
-    useEffect(() => {
-        if (sysPrompt !== null) {
-            setConfigValue('llm.system_prompt', sysPrompt)
-        }
-    }, [sysPrompt]);
-
-    const {data: models} = useQuery({
-        queryKey: ['models'],
-        queryFn: async () => axiosDefault({
-            url: '/models',
-            method: 'get'
-        }).then(({data}) => data as LLMModel[]),
-    })
 
     const {data: voices} = useQuery({
         queryKey: ['voices'],
@@ -99,15 +53,7 @@ export const DependencyToolbar = ({
         initialData: []
     })
 
-    const {data: toolChoices} = useQuery({
-        queryKey: ['tools'],
-        queryFn: async () => axiosDefault({
-            url: '/tools',
-            method: 'get'
-        }).then(({data}) => data as string[]),
-    })
-
-    if (!models || !voices || toolChoices == undefined) {
+    if (!voices) {
         return <CircularProgress/>
     }
 
@@ -160,110 +106,6 @@ export const DependencyToolbar = ({
                 </Stack>
 
 
-            </Paper>
-
-            <Paper elevation={1} sx={{padding: 2, margin: 2}}>
-                <Typography variant="h6">LLM</Typography>
-
-                {status.llm !== null && <Stack direction='column' spacing={2} marginTop={1}>
-                    <FormControl>
-                        <InputLabel id="model-select-label">Model</InputLabel>
-                        <Select
-                            sx={{minWidth: 300}}
-                            variant='outlined'
-                            labelId="model-select-label"
-                            id="model-select"
-                            label='Model'
-                            value={model}
-                            onChange={(e) => {
-                                setModel(e.target.value)
-                                setConfigValue('llm.model', e.target.value)
-                            }}
-                        >
-                            <MenuItem key={'none'} value={'none'}></MenuItem>
-                            {models.map(({id}) => (
-                                <MenuItem key={id}
-                                          value={id}>{status.llm?.includes(id) ? '[loaded]' : ''} {id}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                    <TextField
-                        value={rtSystemPrompt || ""}
-                        onChange={(e) => setRTSystemPrompt(e.target.value)}
-                        multiline
-                    />
-                    <Box>
-                        <Typography id="input-slider" gutterBottom>
-                            Temperature
-                        </Typography>
-                        <Grid container spacing={2} sx={{alignItems: 'center'}}>
-                            <Grid item xs>
-                                <Slider step={0.05} value={rtTemperature || 0}
-                                        onChange={(_, v) => setRTTemperature(v as number)} min={0} max={2}/>
-                            </Grid>
-                            <Grid item>
-                                <Input
-                                    size="small"
-                                    value={rtTemperature}
-                                    onChange={(e) => setRTTemperature(Number.parseFloat(e.target.value))}
-                                    inputProps={{
-                                        min: 0,
-                                        max: 2,
-                                        step: 0.05,
-                                        type: 'number'
-                                    }}
-                                />
-                            </Grid>
-                        </Grid>
-                    </Box>
-                    <Box>
-                        <Typography id="input-slider" gutterBottom>
-                            Repeat penalty
-                        </Typography>
-                        <Grid container spacing={2} sx={{alignItems: 'center'}}>
-                            <Grid item xs>
-                                <Slider step={0.1} value={rtRepeatPenalty || 1}
-                                        onChange={(_, v) => setRTRepeatPenalty(v as number)} min={0} max={1.5}/>
-                            </Grid>
-                            <Grid item>
-                                <Input
-                                    size="small"
-                                    value={rtRepeatPenalty}
-                                    onChange={(e) => setRTRepeatPenalty(Number.parseFloat(e.target.value))}
-                                    inputProps={{
-                                        min: 0,
-                                        max: 1.5,
-                                        step: 0.1,
-                                        type: 'number'
-                                    }}
-                                />
-                            </Grid>
-                        </Grid>
-                    </Box>
-
-                    <FormControl>
-                        <InputLabel id="tools-label">Tools</InputLabel>
-                        <Select
-                            labelId="tools-label"
-                            id="tools-checkbox"
-                            multiple
-                            value={tools}
-                            onChange={(e) => {
-                                setTools(e.target.value as string[])
-                                setConfigValue('llm.tools', e.target.value)
-                            }}
-                            input={<OutlinedInput label="Tools"/>}
-                            renderValue={(selected) => selected.join(', ')}
-                        >
-                            {toolChoices.map((name) => (
-                                <MenuItem key={name} value={name}>
-                                    <Checkbox checked={tools.includes(name)}/>
-                                    <ListItemText primary={name}/>
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                </Stack>}
             </Paper>
 
             <Paper elevation={1} sx={{padding: 2, margin: 2}}>

@@ -14,5 +14,6 @@ COPY db db
 COPY providers providers
 COPY config.json config.json
 COPY alembic.ini alembic.ini
+COPY endpoints endpoints
 
 ENTRYPOINT ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]

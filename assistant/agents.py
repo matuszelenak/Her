@@ -1,14 +1,19 @@
 import argparse
 import asyncio
 import os
-from typing import AsyncGenerator
+from typing import AsyncGenerator, List
 
 from openai import AsyncOpenAI
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.common_tools.tavily import TavilySearchTool
-from pydantic_ai.messages import TextPartDelta, PartDeltaEvent
+from pydantic_ai.messages import TextPartDelta, PartDeltaEvent, ModelMessage
 from pydantic_ai.models.openai import OpenAIModel
 from tavily import AsyncTavilyClient
+
+from log_utils import get_logger
+
+logger = get_logger(__name__)
+
 
 gpt_model = OpenAIModel(
     'Qwen/Qwen2.5-32B-Instruct-AWQ',
@@ -38,7 +43,7 @@ async def web_search_tool(query: str):
         query: The search query
     """
 
-    print(f'Search {query}')
+    logger.debug(f'Search {query}')
     api_key = os.environ.get('TAVILY_API_TOKEN')
     tool = TavilySearchTool(client=AsyncTavilyClient(api_key))
 
@@ -75,7 +80,7 @@ async def knowledge_agent_tool(ctx: RunContext[None], question: str) -> AsyncGen
         ctx: RunContext
         question: the users message
     """
-    print(f'Knowledge {question}')
+    logger.debug(f'Knowledge {question}')
     result = await knowledge_agent.run(question)
     return result.data
 
@@ -89,7 +94,7 @@ async def home_automation_agent_tool(request: str):
     Args:
         request: users request
     """
-    print(f'Automation {request}')
+    logger.debug(f'Automation {request}')
     result = await home_automation_agent.run(request)
     return result.data
 
@@ -102,7 +107,7 @@ async def set_target_temperature(temperature: float):
     Args:
         temperature: Temperature in degrees Celsius
     """
-    print(f'Temperature {temperature}')
+    logger.debug(f'Temperature {temperature}')
     return 'OK'
 
 
@@ -114,13 +119,12 @@ async def play_music(title: str):
     Args:
         title: Song title to play
     """
-    print(f'Song {title}')
+    logger.debug(f'Song {title}')
     return 'OK'
 
 
-async def gen(prompt) -> AsyncGenerator[str, None]:
-    print(prompt)
-    async with supervisor_agent.iter(prompt) as run:
+async def gen(prompt: str, message_history: List[ModelMessage]) -> AsyncGenerator[str, None]:
+    async with supervisor_agent.iter(prompt, message_history=message_history) as run:
         async for node in run:
             if Agent.is_model_request_node(node):
                 async with node.stream(run.ctx) as request_stream:
@@ -130,7 +134,7 @@ async def gen(prompt) -> AsyncGenerator[str, None]:
 
 
 async def main(prompt):
-    async for token in gen(prompt):
+    async for token in gen(prompt, []):
         print(token, end='', flush=True)
     print()
 
