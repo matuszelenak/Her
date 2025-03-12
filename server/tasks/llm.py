@@ -7,7 +7,7 @@ from typing import Tuple, Literal, Union, AsyncGenerator, Iterable
 from bs4 import BeautifulSoup
 from markdown import markdown
 from openai import AsyncClient
-from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
+from openai.types.chat import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_chunk import Choice
 
 from tasks.tts import tts_task
@@ -18,6 +18,10 @@ logger = get_logger(__name__)
 
 TokenTuple = Tuple[Literal['token'], Choice]
 SentenceTuple = Tuple[Literal['sentence'], str]
+
+
+open_api_url = os.environ.get('OPENAI_API_URL')
+client = AsyncClient(base_url=open_api_url, api_key='whatever')
 
 
 async def llm_query_task(session: Session, prompt: str):
@@ -31,11 +35,14 @@ async def llm_query_task(session: Session, prompt: str):
         if session.speech_enabled:
             session.tts_task = asyncio.create_task(tts_task(session, llm_response_queue))
 
-        printable_response = ""
+        complete_response = ""
 
         async for resp_type, content in generate_llm_response(session.chat.messages):
             if resp_type == 'token':
                 content: Choice
+
+                complete_response += content.delta.content
+
                 await session.client_socket.send_json({
                     'type': 'token',
                     'token': {
@@ -54,11 +61,9 @@ async def llm_query_task(session: Session, prompt: str):
                 if session.speech_enabled:
                     await llm_response_queue.put(cleaned)
 
-                printable_response += content
-
         await session.append_message({
             'role': 'assistant',
-            'content': ''.join(printable_response)
+            'content': ''.join(complete_response)
         })
 
         session.last_interaction = datetime.now()
@@ -75,17 +80,11 @@ async def llm_query_task(session: Session, prompt: str):
 
 async def generate_llm_response(messages: Iterable[ChatCompletionMessageParam]) -> AsyncGenerator[Union[TokenTuple, SentenceTuple], None]:
     sentence_buffer = ""
-
-    open_api_url = os.environ.get('OPENAI_API_URL')
-    client = AsyncClient(base_url=open_api_url, api_key='whatever')
-
-    part: ChatCompletionChunk
     async for part in await client.chat.completions.create(
             model='anything',
             messages=messages,
             stream=True
     ):
-
         msg = part.choices[0].delta.content
 
         yield 'token', part.choices[0]
@@ -94,7 +93,7 @@ async def generate_llm_response(messages: Iterable[ChatCompletionMessageParam]) 
 
         for char in msg:
             sentence_buffer += char
-            if char in ('.', ':', '\n'):
+            if char in ('.', ':', '\n', '?', '!'):
                 yield 'sentence', sentence_buffer.strip() + " "
 
                 sentence_buffer = ""
