@@ -26,22 +26,12 @@ async def generate_llm_response(session: Session, prompt: str) -> AsyncGenerator
     part: ChatCompletionChunk
     async for part in await llm.chat.completions.create(
         model=session.chat.config.llm.model,
-        messages=[{
-            'role': 'system',
-            'content': session.chat.config.llm.system_prompt
-        }] + session.chat.messages,
+        messages=session.chat.messages,
         stream=True,
         temperature=session.chat.config.llm.temperature
     ):
 
         msg = part.choices[0].delta.content
-
-        if len(part.choices[0].delta.tool_calls or []) > 0:
-            for call in part.choices[0].delta.tool_calls:
-                logger.warning(f'{call}')
-                yield 'tool_call', call
-
-            break
 
         yield 'token', part.choices[0]
 

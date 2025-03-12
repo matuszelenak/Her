@@ -34,6 +34,29 @@ services:
       - ./server:/app
       - ./tts_output:/tts_output
 
+  assistant:
+    container_name: ai-girlfriend-assistant
+    build:
+      context: ./assistant
+      dockerfile: dev.Dockerfile
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./assistant/.env
+    develop:
+      watch:
+        - action: rebuild
+          path: assistant/requirements.txt
+        - action: sync
+          path: assistant/agents.py
+          target: /app/agents.py
+        - action: sync
+          path: assistant/server.py
+          target: /app/server.py
+        - action: sync
+          path: assistant/utils.py
+          target: /app/utils.py
+
   ui:
     container_name: ai-girlfriend-ui
     build:

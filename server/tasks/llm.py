@@ -13,12 +13,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel('INFO')
 
 
-tools = {
-    'get_ip_address': get_ip_address,
-    'get_current_moon_phase': get_current_moon_phase
-}
-
-
 async def llm_query_task(session: Session, prompt: str):
     try:
 
@@ -31,51 +25,35 @@ async def llm_query_task(session: Session, prompt: str):
         if session.speech_enabled:
             session.tts_task = asyncio.create_task(tts_task(session, llm_response_queue))
 
-        while True:
-            tool_answers = []
-            printable_response = ""
+        printable_response = ""
 
-            async for resp_type, content in generate_llm_response(session, prompt):
-                if resp_type == 'token':
-                    content: Choice
-                    await session.client_socket.send_json({
-                        'type': 'token',
-                        'token': {
-                            'message': {
-                                'role': content.delta.role,
-                                'content': content.delta.content
-                            },
-                            'done': content.finish_reason is not None
-                        }
-                    })
-
-                elif resp_type == 'sentence':
-                    cleaned = strip_markdown(content)
-
-                    logger.info(f'Adding to TTS queue {cleaned}')
-                    if session.speech_enabled:
-                        await llm_response_queue.put(cleaned)
-
-                    printable_response += content
-
-                elif resp_type == 'tool_call':
-                    content: ChoiceDeltaToolCall
-                    fn = tools.get(content.function.name)
-                    if fn:
-                        tool_answers.append(fn(**content.function.arguments))
-
-            if len(tool_answers) > 0:
-                for answer in tool_answers:
-                    await session.append_message({
-                        'role': 'tool',
-                        'content': str(answer)
-                    })
-            else:
-                await session.append_message({
-                    'role': 'assistant',
-                    'content': ''.join(printable_response)
+        async for resp_type, content in generate_llm_response(session, prompt):
+            if resp_type == 'token':
+                content: Choice
+                await session.client_socket.send_json({
+                    'type': 'token',
+                    'token': {
+                        'message': {
+                            'role': content.delta.role,
+                            'content': content.delta.content
+                        },
+                        'done': content.finish_reason is not None
+                    }
                 })
-                break
+
+            elif resp_type == 'sentence':
+                cleaned = strip_markdown(content)
+
+                logger.info(f'Adding to TTS queue {cleaned}')
+                if session.speech_enabled:
+                    await llm_response_queue.put(cleaned)
+
+                printable_response += content
+
+        await session.append_message({
+            'role': 'assistant',
+            'content': ''.join(printable_response)
+        })
 
         session.last_interaction = datetime.now()
 
