@@ -4,25 +4,20 @@ import os
 from typing import AsyncGenerator, List
 
 from openai import AsyncOpenAI
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, RunContext, Tool
 from pydantic_ai.common_tools.tavily import TavilySearchTool
 from pydantic_ai.messages import TextPartDelta, PartDeltaEvent, ModelMessage
 from pydantic_ai.models.openai import OpenAIModel
 from tavily import AsyncTavilyClient
 
 from log_utils import get_logger
+from tools.spotify import play_song, stop_playback, change_volume, next_song, previous_song
 
 logger = get_logger(__name__)
-
 
 gpt_model = OpenAIModel(
     'Qwen/Qwen2.5-32B-Instruct-AWQ',
     openai_client=AsyncOpenAI(api_key='none', base_url='http://10.0.0.2:8000/v1')
-)
-
-conversation_agent = Agent(
-    gpt_model,
-    system_prompt="You are an eager and cheery conversation agent with the personality of a cute anime waifu. You do not have access to any tools, just naturally respond to the users message"
 )
 
 knowledge_agent = Agent(
@@ -55,7 +50,14 @@ home_automation_agent = Agent(
     gpt_model,
     system_prompt="""
     You are a home assistant agent, capable of calling tools that manage the smart devices in the users home
-    """
+    """,
+    tools=[
+        Tool(play_song, takes_ctx=False),
+        Tool(previous_song, takes_ctx=False),
+        Tool(next_song, takes_ctx=False),
+        Tool(stop_playback, takes_ctx=False),
+        Tool(change_volume, takes_ctx=False)
+    ]
 )
 
 supervisor_agent = Agent(
@@ -108,18 +110,6 @@ async def set_target_temperature(temperature: float):
         temperature: Temperature in degrees Celsius
     """
     logger.debug(f'Temperature {temperature}')
-    return 'OK'
-
-
-@home_automation_agent.tool_plain
-async def play_music(title: str):
-    """
-    A tool to play a song on the house sound system.
-
-    Args:
-        title: Song title to play
-    """
-    logger.debug(f'Song {title}')
     return 'OK'
 
 

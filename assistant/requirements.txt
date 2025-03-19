@@ -5,3 +5,4 @@ sse-starlette
 uvicorn
 openai
 tavily-python
+spotipy
