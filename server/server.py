@@ -6,6 +6,7 @@ from uuid import uuid4
 import starlette
 from fastapi import FastAPI, WebSocket, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.staticfiles import StaticFiles
 
 from db.models import Chat
 from db.session import get_db
@@ -25,6 +26,8 @@ logger = get_logger(__name__)
 
 app.include_router(chat_router)
 app.include_router(audio_router)
+
+app.mount('/audio', StaticFiles(directory='/tts_output'), name='tts-output')
 
 
 @app.websocket("/ws/health")

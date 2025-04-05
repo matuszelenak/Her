@@ -17,6 +17,9 @@ class Chat(Base):
     def __str__(self):
         return f'{self.id}, {len(self.messages)} msgs'
 
+    def __len__(self):
+        return len(self.messages)
+
     @property
     def config(self):
         from utils.configuration import SessionConfig

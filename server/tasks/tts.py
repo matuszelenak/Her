@@ -1,5 +1,5 @@
 import asyncio
-import os.path
+from pathlib import Path
 from uuid import uuid4
 
 from providers import providers
@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 
 
 async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
-    kokoro: TextToSpeechProvider = providers['tts']
+    tts_provider: TextToSpeechProvider = providers['tts']
     try:
         await session.client_socket.send_json({
             'type': 'speech_start'
@@ -32,19 +32,18 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
 
             logger.debug(f'Submitting for TTS {sentence}')
 
-            audio_bytearray = await kokoro.generate_audio(sentence, session.chat.config.tts.voice)
+            audio_bytearray = await tts_provider.generate_audio(sentence, session.chat.config.tts.voice)
 
-            _id = uuid4()
-            if not os.path.exists(f'/tts_output/{session.chat.id}'):
-                os.mkdir(f'/tts_output/{session.chat.id}')
+            folder_path = Path(f'/tts_output/{session.chat.id}/{len(session.chat)}')
+            folder_path.mkdir(parents=True, exist_ok=True)
+            file_path = folder_path / f'{order}_{uuid4()}.mp3'
 
-            filename = f'/tts_output/{session.chat.id}/{_id}'
-            with open(filename, 'wb') as f:
+            with open(file_path, 'wb') as f:
                 f.write(bytes(audio_bytearray))
 
             await session.client_socket.send_json({
                 'type': 'speech_id',
-                'filename': f'{session.chat.id}/{_id}',
+                'filename': str(file_path.relative_to('/tts_output')),
                 'order': order,
                 'text': sentence
             })
