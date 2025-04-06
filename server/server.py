@@ -1,10 +1,10 @@
 import asyncio
-import json
 from datetime import datetime
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 import starlette
 from fastapi import FastAPI, WebSocket, Depends
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.staticfiles import StaticFiles
 
@@ -12,6 +12,9 @@ from db.models import Chat
 from db.session import get_db
 from endpoints.audio import audio_router
 from endpoints.chat import chat_router
+from models.received_events import WsReceiveSamplesEvent, WsReceiveEvent, WsReceiveSpeechEndEvent, \
+    WsReceiveEventUnion, WsReceiveTextPrompt, WsReceiveSpeechPromptEvent, WsReceiveAgentSpeechEnd
+from models.sent_events import WsManualPromptEvent
 from providers import providers
 from tasks.coordination import trigger_llm
 from tasks.stt import stt_task
@@ -44,15 +47,23 @@ async def health_endpoint(websocket: WebSocket):
         pass
 
 
-@app.websocket("/ws/chat")
-async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
+@app.websocket("/ws/chat/{chat_id}")
+async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = Depends(get_db)):
     await websocket.accept()
 
     logger.debug(f"New client connected")
 
     session_id = str(uuid4())
     config = await get_previous_or_default_config(db)
-    chat = Chat(config_db=config)
+
+    query = select(Chat).filter(Chat.id == chat_id)
+    results = await db.execute(query)
+    chat = results.scalar()
+
+    if chat is None:
+        chat = Chat(config_db=config)
+        chat._id = UUID(chat_id)
+
     session = Session(
         session_id,
         db,
@@ -65,60 +76,52 @@ async def chat_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)
         received_speech_queue = asyncio.Queue()
 
         while True:
-            data = await websocket.receive_json()
-            # logger.warning(f'Received ws {data}')
-            if data['event'] == 'load_chat':
-                if data["chat_id"] is not None:
-                    await session.load_chat(data["chat_id"])
-                else:
-                    session.chat = Chat(config_db=config)
+            event_data = await websocket.receive_json()
+            event = WsReceiveEvent.model_validate({'event': event_data}).event
 
-                await websocket.send_json({
-                    'type': 'config',
-                    'config': json.loads(session.chat.config.model_dump_json())
-                })
+            logger.debug(event.type)
 
-            elif data['event'] == 'samples':
+            if isinstance(event, WsReceiveSamplesEvent):
                 session.user_speaking_status = (True, datetime.now())
                 if session.stt_task is None:
                     session.stt_task = asyncio.create_task(stt_task(session, received_speech_queue))
-                await received_speech_queue.put(data['data'])
+                await received_speech_queue.put(event.data)
 
-            elif data['event'] == 'speech_end':
+            elif isinstance(event, WsReceiveSpeechEndEvent):
                 logger.debug('Speak end')
                 session.user_speaking_status = (False, datetime.now())
                 await received_speech_queue.put(None)
 
-            elif data['event'] == 'speech_prompt_end':
+            elif isinstance(event, WsReceiveTextPrompt):
+                session.prompt = f'{session.prompt or ""}{event.prompt}'
+
+                await session.send_event(
+                    WsManualPromptEvent(
+                        text=event.prompt
+                    )
+                )
+
+                trigger_llm(session)
+
+            elif isinstance(event, WsReceiveSpeechPromptEvent):
                 if session.prompt:
                     warrants_response = await should_agent_respond(session)
 
                     if warrants_response:
                         trigger_llm(session)
                     else:
-                        await session.client_socket.send_json({
-                            'type': 'stt_output_invalidation'
-                        })
+                        pass
+                        # await session.send_event({
+                        #     'type': 'user_speech_transcription_invalidation'
+                        # })
 
-            elif data['event'] == 'text_prompt':
-                session.prompt = f'{session.prompt or ""}{data["prompt"]}'
-
-                await session.client_socket.send_json({
-                    'type': 'manual_prompt',
-                    'text': data['prompt']
-                })
-
-                trigger_llm(session)
-
-            elif data['event'] == 'speech_toggle':
-                session.speech_enabled = data['value']
-                logger.debug(f'Speech {session.speech_enabled}')
-
-            elif data['event'] == 'config':
-                await session.set_config_from_event(data['field'], data['value'])
-
-            elif data['event'] == 'finished_speaking':
+            elif isinstance(event, WsReceiveAgentSpeechEnd):
                 session.last_interaction = datetime.now()
+
+            # elif data['event'] == 'speech_toggle':
+            #     session.speech_enabled = data['value']
+            #     logger.debug(f'Speech {session.speech_enabled}')
+
 
     except starlette.websockets.WebSocketDisconnect:
         pass

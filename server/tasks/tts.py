@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 from uuid import uuid4
 
+from models.sent_events import WsSendSpeechEvent, WsSendAssistantSpeechStartEvent
 from providers import providers
 from providers.base import TextToSpeechProvider
 from utils.log import get_logger
@@ -13,9 +14,7 @@ logger = get_logger(__name__)
 async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
     tts_provider: TextToSpeechProvider = providers['tts']
     try:
-        await session.client_socket.send_json({
-            'type': 'speech_start'
-        })
+        await session.send_event(WsSendAssistantSpeechStartEvent())
         order = 0
         while True:
             logger.debug('Awaiting TTS queue')
@@ -41,12 +40,13 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
             with open(file_path, 'wb') as f:
                 f.write(bytes(audio_bytearray))
 
-            await session.client_socket.send_json({
-                'type': 'speech_id',
-                'filename': str(file_path.relative_to('/tts_output')),
-                'order': order,
-                'text': sentence
-            })
+            event = WsSendSpeechEvent(
+                filename=str(file_path.relative_to('/tts_output')),
+                order=order,
+                text=sentence
+            )
+            await session.send_event(event)
+
             order += 1
     except asyncio.CancelledError:
         logger.debug('TTS task cancelled')

@@ -6,7 +6,7 @@ import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
 import { arrayBufferToBase64 } from "../utils/encoding.ts";
 import { useMicVAD } from "../utils/vad/useMic.tsx";
-import { ChatConfiguration, Token, WebSocketEvent, WebsocketEventType } from "../types.ts";
+import { Token, WebSocketEvent, WebsocketEventType } from "../types.ts";
 import { ChatList } from "../Components/ChatList.tsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { axiosDefault } from "../api.ts";
@@ -43,8 +43,6 @@ export const Chat = () => {
         uncertainWords: []
     })
     const [agentMessage, setAgentMessage] = useState<Array<Token>>([])
-    const [config, setConfig] = useState<ChatConfiguration | null>(null)
-
     const [speechEnabled, setSpeechEnabled] = useState(true)
 
     const {queueAudio, finishedId, stop: audioPlayerStop} = usePlayer()
@@ -67,10 +65,25 @@ export const Chat = () => {
         enabled: !!chatId
     })
 
+    useEffect(() => {
+        const getNewChatId = async () => {
+            const newChatId = await axiosDefault({
+                url: `/chat/new`,
+                method: 'post'
+            }).then(({data}: { data: string }) => data)
+            navigate(`/chat/${newChatId}`)
+            await queryClient.invalidateQueries({queryKey: ['chat_list']})
+        }
+
+        if (!chatId) {
+            getNewChatId()
+        }
+    }, [chatId]);
+
     const {
         sendJsonMessage,
     } = useWebSocket(
-        `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws/chat`,
+        `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws/chat/${chatId}`,
         {
             onMessage: async (event: WebSocketEventMap['message']) => {
                 const message = JSON.parse(event.data) as WebSocketEvent
@@ -79,7 +92,7 @@ export const Chat = () => {
                 console.log(message)
 
                 switch (message.type) {
-                    case WebsocketEventType.STT_OUTPUT_INVALIDATION:
+                    case WebsocketEventType.USER_TRANSCRIPTION_INVALIDATION:
                         break;
                     case WebsocketEventType.TOKEN:
                         if (userMessage.completedWords.length > 0) {
@@ -94,7 +107,7 @@ export const Chat = () => {
                         }
                         setAgentMessage((prevState) => ([...prevState, message.token]))
                         break;
-                    case WebsocketEventType.STT_OUTPUT:
+                    case WebsocketEventType.USER_TRANSCRIPTION:
                         audioPlayerStop()
                         if (message.segment.complete) {
                             setUserMessage((prev) => ({
@@ -111,15 +124,8 @@ export const Chat = () => {
                     case WebsocketEventType.SPEECH_FILE:
                         await queueAudio(message)
                         break;
-                    case WebsocketEventType.SPEECH_START:
+                    case WebsocketEventType.ASSISTANT_SPEECH_START:
                         audioPlayerStop()
-                        break;
-                    case WebsocketEventType.NEW_CHAT:
-                        navigate(`/chat/${message.chat_id}`)
-                        await queryClient.invalidateQueries({queryKey: ['chat_list']})
-                        break;
-                    case WebsocketEventType.CONFIG:
-                        setConfig(message.config)
                         break;
                     case WebsocketEventType.MANUAL_PROMPT:
                         setUserMessage({
@@ -129,38 +135,19 @@ export const Chat = () => {
                         break;
                 }
 
-
-                // if (message.type == 'stt_output_invalidation') {
-                //     if (userMessage !== "") {
-                //         setMessages((prevState: Message[]) => [...prevState, {
-                //             role: 'user',
-                //             message: [`~~${userMessage}~~`]
-                //         }])
-                //     }
-                //     setUserMessage("")
-                // }
-
             },
+            shouldReconnect: () => true,
             reconnectAttempts: 1000,
             reconnectInterval: 2000,
             share: true
-        }
+        },
+        !!chatId
     );
-
-    useEffect(() => {
-        sendJsonMessage({
-            event: 'load_chat',
-            chat_id: chatId || null
-        })
-        if (!chatId) {
-            setMessages([])
-        }
-    }, [chatId]);
 
     useEffect(() => {
         if (finishedId) {
             sendJsonMessage({
-                event: 'finished_speaking'
+                type: 'finished_speaking'
             })
         }
     }, [finishedId]);
@@ -184,13 +171,13 @@ export const Chat = () => {
         startOnLoad: false,
         onSpeechFrames: (audio: Float32Array) => {
             sendJsonMessage({
-                'event': 'samples',
+                'type': 'samples',
                 'data': arrayBufferToBase64(audio.buffer)
             })
         },
         onSpeechEnd: () => {
             sendJsonMessage({
-                'event': 'speech_end'
+                'type': 'speech_end'
             })
             if (notifySpeechEnd !== null) {
                 clearTimeout(notifySpeechEnd)
@@ -198,7 +185,7 @@ export const Chat = () => {
             setNotifySpeechEnd(setTimeout(() => {
                 console.log('Confirm speech submission')
                 sendJsonMessage({
-                    'event': 'speech_prompt_end'
+                    'type': 'speech_prompt_end'
                 })
             }, speechConfirmDelay))
         }
@@ -261,7 +248,7 @@ export const Chat = () => {
                                     if (e.keyCode === 13) {
                                         if (!e.shiftKey) {
                                             sendJsonMessage({
-                                                event: 'text_prompt',
+                                                type: 'text_prompt',
                                                 prompt: textInputPrompt
                                             })
                                             setTextInputPrompt("")
@@ -272,7 +259,7 @@ export const Chat = () => {
                             />
                             <Button variant="outlined" onClick={() => {
                                 sendJsonMessage({
-                                    event: 'text_prompt',
+                                    type: 'text_prompt',
                                     prompt: textInputPrompt
                                 })
                                 setTextInputPrompt("")
@@ -283,22 +270,14 @@ export const Chat = () => {
                     </Stack>
                 </Grid>
                 <Grid size={3} sx={{maxHeight: '100vh'}}>
-                    {config && <DependencyToolbar
-                        config={config}
-                        setConfigValue={(field, value) => {
-                            sendJsonMessage({
-                                event: 'config',
-                                field: field,
-                                value: value
-                            })
-                        }}
+                    <DependencyToolbar
                         vad={vad}
                         speech={{
                             speaking: speechEnabled,
                             toggleSpeaking: () => {
                                 setSpeechEnabled((prevState) => {
                                     sendJsonMessage({
-                                        event: 'speech_toggle',
+                                        type: 'speech_toggle',
                                         value: !prevState
                                     })
                                     return !prevState
@@ -308,7 +287,6 @@ export const Chat = () => {
                             setConfirmDelay: setSpeechConfirmDelay
                         }}
                     />
-                    }
                 </Grid>
             </Grid>
         </>

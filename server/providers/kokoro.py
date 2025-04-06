@@ -37,5 +37,8 @@ class KokoroAudioProvider(TextToSpeechProvider):
 
     async def health_status(self):
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f'{self.base_url}/health', timeout=500)
-            return resp.json()['status']
+            try:
+                resp = await client.get(f'{self.base_url}/health', timeout=500)
+                return resp.json()['status']
+            except httpx.ConnectError:
+                return 'unhealthy'

@@ -1,5 +1,6 @@
 import os.path
 import shutil
+from uuid import uuid4
 
 from fastapi import Depends, APIRouter
 from fastapi.encoders import jsonable_encoder
@@ -28,6 +29,11 @@ async def get_chat(chat_id: str, db: AsyncSession = Depends(get_db)):
     query = select(Chat).filter(Chat.id == chat_id)
     result = await db.execute(query)
     return jsonable_encoder(result.scalar())
+
+
+@chat_router.post('/chat/new')
+async def chat_new():
+    return str(uuid4())
 
 
 @chat_router.delete('/chat/{chat_id}')

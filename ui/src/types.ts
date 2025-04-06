@@ -1,18 +1,3 @@
-export type ChatConfiguration = {
-    tts: {
-        voice: string
-        language: 'en' | 'cs'
-    },
-    whisper: {
-        language: 'en' | 'cs'
-        model: string
-    }
-    app: {
-        prevalidate_prompt: boolean
-    }
-}
-
-
 export type Token = {
     message: {
         role: 'assistant' | 'user'
@@ -23,20 +8,18 @@ export type Token = {
 
 
 export type DependencyStatus = {
-    stt: 'healthy' | undefined
-    tts: 'healthy' | undefined
+    stt: 'healthy' | 'unhealthy' | undefined
+    tts: 'healthy' | 'unhealthy'| undefined
     llm: string[] | null
 }
 
 export enum WebsocketEventType {
     TOKEN = 'token',
-    STT_OUTPUT = 'stt_output',
-    STT_OUTPUT_INVALIDATION = 'stt_output_invalidation',
-    SPEECH_START = 'speech_start',
+    USER_TRANSCRIPTION = 'user_speech_transcription',
+    USER_TRANSCRIPTION_INVALIDATION = 'user_speech_transcription_invalidation',
+    ASSISTANT_SPEECH_START = 'assistant_speech_start',
     SPEECH_FILE = 'speech_id',
     MANUAL_PROMPT = 'manual_prompt',
-    CONFIG = 'config',
-    NEW_CHAT = 'new_chat'
 }
 
 
@@ -46,7 +29,7 @@ export interface TokenEvent {
 }
 
 export interface STTOutputEvent {
-    type: WebsocketEventType.STT_OUTPUT
+    type: WebsocketEventType.USER_TRANSCRIPTION
     segment: {
         words: string[],
         complete: boolean
@@ -55,11 +38,11 @@ export interface STTOutputEvent {
 }
 
 export interface STTOutputInvalidationEvent {
-    type: WebsocketEventType.STT_OUTPUT_INVALIDATION
+    type: WebsocketEventType.USER_TRANSCRIPTION_INVALIDATION
 }
 
 export interface SpeechStartEvent {
-    type: WebsocketEventType.SPEECH_START
+    type: WebsocketEventType.ASSISTANT_SPEECH_START
 }
 
 export interface SpeechFileEvent {
@@ -68,16 +51,6 @@ export interface SpeechFileEvent {
     filename: string
     text: string
     order: number
-}
-
-export interface NewChatEvent {
-    type: WebsocketEventType.NEW_CHAT
-    chat_id: string
-}
-
-export interface ConfigEvent {
-    type: WebsocketEventType.CONFIG
-    config: ChatConfiguration
 }
 
 export interface ManualPromptEvent {
@@ -91,6 +64,4 @@ export type WebSocketEvent =
     | STTOutputInvalidationEvent
     | SpeechFileEvent
     | SpeechStartEvent
-    | NewChatEvent
-    | ConfigEvent
     | ManualPromptEvent

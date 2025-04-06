@@ -10,6 +10,8 @@ from openai import AsyncClient
 from openai.types.chat import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_chunk import Choice
 
+from models.base import Token, Message
+from models.sent_events import WsSendTokenEvent
 from tasks.tts import tts_task
 from utils.log import get_logger
 from utils.session import Session
@@ -43,16 +45,14 @@ async def llm_query_task(session: Session, prompt: str):
 
                 complete_response += content.delta.content
 
-                await session.client_socket.send_json({
-                    'type': 'token',
-                    'token': {
-                        'message': {
-                            'role': content.delta.role,
-                            'content': content.delta.content
-                        },
-                        'done': content.finish_reason is not None
-                    }
-                })
+                await session.send_event(WsSendTokenEvent(
+                    token=Token(
+                        message=Message(
+                            role='assistant',
+                            content=content.delta.content
+                        )
+                    )
+                ))
 
             elif resp_type == 'sentence':
                 cleaned = strip_markdown(content)

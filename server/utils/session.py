@@ -4,12 +4,12 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 from uuid import uuid4
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 from starlette.websockets import WebSocket
 
 from db.models import Chat
+from models.sent_events import WsSendEvent
 from utils.log import get_logger
 
 logger = get_logger(__name__)
@@ -32,21 +32,18 @@ class Session:
 
     last_interaction: Optional[datetime.datetime] = None
 
+    async def send_event(self, event: WsSendEvent):
+        return await self.client_socket.send_json(event.model_dump())
+
     def terminate(self):
         if self.stt_task:
             self.stt_task.cancel()
         if self.tts_task:
             self.tts_task.cancel()
 
-    async def load_chat(self, chat_id):
-        query = select(Chat).filter(Chat.id == chat_id)
-        results = await self.db.execute(query)
-        result = results.scalar()
-        self.chat = result
-
     async def append_message(self, message):
         if self.chat.id is None:
-            self.chat.id = uuid4()
+            self.chat.id = self.chat._id or uuid4()
             self.chat.header = message['content'][:30]
             self.chat.started_at = datetime.datetime.now()
 
@@ -54,10 +51,6 @@ class Session:
             await self.db.commit()
             await self.db.refresh(self.chat)
 
-            await self.client_socket.send_json({
-                'type': 'new_chat',
-                'chat_id': str(self.chat.id)
-            })
 
         self.chat.messages.append(message | {
             'time': datetime.datetime.now().timestamp()

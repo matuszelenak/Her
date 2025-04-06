@@ -1,9 +1,11 @@
 import asyncio
 import json
+from typing import AsyncGenerator
 
 import httpx
 import websockets
 
+from models.base import TranscriptionSegment
 from providers.base import BaseProvider
 from utils.log import get_logger
 
@@ -15,9 +17,12 @@ class WhisperProvider(BaseProvider):
         self.base_url = base_url
 
     async def health_status(self):
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(f'http://{self.base_url}/health', timeout=500)
-            return resp.json()['status']
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(f'http://{self.base_url}/health', timeout=500)
+                return resp.json()['status']
+        except httpx.ConnectError:
+            return 'unhealthy'
 
     @staticmethod
     async def sender_task(stt_socket, received_speech_queue):
@@ -33,13 +38,13 @@ class WhisperProvider(BaseProvider):
                 }))
 
 
-    async def continuous_transcription(self, received_speech_queue: asyncio.Queue):
+    async def continuous_transcription(self, received_speech_queue: asyncio.Queue) -> AsyncGenerator[TranscriptionSegment, None]:
         async for stt_socket in websockets.connect(f'ws://{self.base_url}/transcribe'):
             sender = asyncio.create_task(WhisperProvider.sender_task(stt_socket, received_speech_queue))
 
             try:
                 async for message in stt_socket:
-                    yield json.loads(message)
+                    yield TranscriptionSegment.model_validate_json(message)
 
             except websockets.exceptions.ConnectionClosedError:
                 sender.cancel()
