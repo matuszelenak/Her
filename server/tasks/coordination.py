@@ -7,7 +7,7 @@ from utils.session import Session
 logger = get_logger(__name__)
 
 
-def trigger_llm(session: Session):
+def trigger_agent_response(session: Session):
     if session.tts_task is not None and not session.tts_task.done():
         session.tts_task.cancel()
         session.tts_task = None

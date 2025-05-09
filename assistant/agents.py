@@ -3,11 +3,11 @@ import asyncio
 import os
 from typing import AsyncGenerator, List
 
-from openai import AsyncOpenAI
+from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai import Agent, RunContext, Tool
 from pydantic_ai.common_tools.tavily import TavilySearchTool
 from pydantic_ai.messages import TextPartDelta, PartDeltaEvent, ModelMessage
-from pydantic_ai.models.openai import OpenAIModel
 from tavily import AsyncTavilyClient
 
 from log_utils import get_logger
@@ -16,8 +16,8 @@ from tools.spotify import play_song, stop_playback, change_volume, next_song, pr
 logger = get_logger(__name__)
 
 gpt_model = OpenAIModel(
-    'Qwen/Qwen2.5-32B-Instruct-AWQ',
-    openai_client=AsyncOpenAI(api_key='none', base_url='http://10.0.0.2:8000/v1')
+    'cognitivecomputations/Qwen3-30B-A3B-AWQ',
+    provider=OpenAIProvider(api_key='none', base_url='http://10.0.0.2:11433/v1')
 )
 
 knowledge_agent = Agent(
@@ -98,7 +98,7 @@ async def home_automation_agent_tool(request: str):
     """
     logger.debug(f'Automation {request}')
     result = await home_automation_agent.run(request)
-    return result.data
+    return result.output
 
 
 @home_automation_agent.tool_plain

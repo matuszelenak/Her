@@ -1,5 +1,5 @@
-import React, { useEffect, useReducer, useState } from "react"
-import {defaultRealTimeVADOptions, MicVAD, RealTimeVADOptions} from "./real-time-vad.ts";
+import React, {useEffect, useState} from "react"
+import {DEFAULT_MODEL, getDefaultRealTimeVADOptions, MicVAD, RealTimeVADOptions} from "./real-time-vad.ts";
 
 
 interface ReactOptions {
@@ -14,13 +14,17 @@ const defaultReactOptions: ReactOptions = {
     userSpeakingThreshold: 0.6,
 }
 
-export const defaultReactRealTimeVADOptions = {
-    ...defaultRealTimeVADOptions,
-    ...defaultReactOptions,
+export const getDefaultReactRealTimeVADOptions = (
+    model: "legacy" | "v5"
+): ReactRealTimeVADOptions => {
+    return {
+        ...getDefaultRealTimeVADOptions(model),
+        ...defaultReactOptions,
+    }
 }
 
 const reactOptionKeys = Object.keys(defaultReactOptions)
-const vadOptionKeys = Object.keys(defaultRealTimeVADOptions)
+const vadOptionKeys = Object.keys(getDefaultRealTimeVADOptions("v5"))
 
 const _filter = (keys: string[], obj: any) => {
     return keys.reduce((acc, key) => {
@@ -32,7 +36,8 @@ const _filter = (keys: string[], obj: any) => {
 function useOptions(
     options: Partial<ReactRealTimeVADOptions>
 ): [ReactOptions, RealTimeVADOptions] {
-    options = { ...defaultReactRealTimeVADOptions, ...options }
+    const model = options.model ?? DEFAULT_MODEL
+    options = { ...getDefaultReactRealTimeVADOptions(model), ...options }
     const reactOptions = _filter(reactOptionKeys, options) as ReactOptions
     const vadOptions = _filter(vadOptionKeys, options) as RealTimeVADOptions
     return [reactOptions, vadOptions]
@@ -54,20 +59,17 @@ function useEventCallback<T extends (...args: any[]) => any>(fn: T): T {
 
 export function useMicVAD(options: Partial<ReactRealTimeVADOptions>) {
     const [reactOptions, vadOptions] = useOptions(options)
-    const [userSpeaking, updateUserSpeaking] = useReducer(
-        (_: boolean, isSpeechProbability: number) =>
-            isSpeechProbability > reactOptions.userSpeakingThreshold,
-        false
-    )
+    const [userSpeaking, updateUserSpeaking] = useState(false)
     const [loading, setLoading] = useState(true)
     const [errored, setErrored] = useState<false | { message: string }>(false)
     const [listening, setListening] = useState(false)
     const [vad, setVAD] = useState<MicVAD | null>(null)
 
     const userOnFrameProcessed = useEventCallback(vadOptions.onFrameProcessed)
-    vadOptions.onFrameProcessed = useEventCallback((probs) => {
-        updateUserSpeaking(probs.isSpeech)
-        userOnFrameProcessed
+    vadOptions.onFrameProcessed = useEventCallback((probs, frame) => {
+        const isSpeaking = probs.isSpeech > reactOptions.userSpeakingThreshold
+        updateUserSpeaking(isSpeaking)
+        userOnFrameProcessed(probs, frame)
     })
     const { onSpeechFrames, onSpeechEnd } = vadOptions
     const _onSpeechFrames = useEventCallback(onSpeechFrames)
@@ -90,7 +92,7 @@ export function useMicVAD(options: Partial<ReactRealTimeVADOptions>) {
                 if (e instanceof Error) {
                     setErrored({ message: e.message })
                 } else {
-                    // @ts-ignore
+                    // @ts-expect-error wtf
                     setErrored({ message: e })
                 }
                 return
@@ -102,7 +104,7 @@ export function useMicVAD(options: Partial<ReactRealTimeVADOptions>) {
                 setListening(true)
             }
         }
-        setup().catch((_) => {
+        setup().catch(() => {
             console.log("Well that didn't work")
         })
         return function cleanUp() {

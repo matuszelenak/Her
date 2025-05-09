@@ -34,8 +34,7 @@ async def llm_query_task(session: Session, prompt: str):
         })
 
         llm_response_queue = asyncio.Queue()
-        if session.speech_enabled:
-            session.tts_task = asyncio.create_task(tts_task(session, llm_response_queue))
+        session.tts_task = asyncio.create_task(tts_task(session, llm_response_queue))
 
         complete_response = ""
 
@@ -55,21 +54,26 @@ async def llm_query_task(session: Session, prompt: str):
                 ))
 
             elif resp_type == 'sentence':
+                content: str
+
                 cleaned = strip_markdown(content)
 
                 logger.debug(f'Adding to TTS queue {cleaned}')
-                if session.speech_enabled:
-                    await llm_response_queue.put(cleaned)
+                await llm_response_queue.put(cleaned)
 
         await session.append_message({
             'role': 'assistant',
             'content': ''.join(complete_response)
         })
 
+        # Notify frontend of the end of generation
+        await session.send_event(WsSendTokenEvent(
+            token=None
+        ))
+
         session.last_interaction = datetime.now()
 
-        if session.speech_enabled:
-            await llm_response_queue.put(None)
+        await llm_response_queue.put(None)
 
     except asyncio.CancelledError:
         logger.debug('LLM task cancelled')
@@ -87,7 +91,7 @@ async def generate_llm_response(messages: Iterable[ChatCompletionMessageParam]) 
     ):
         msg = part.choices[0].delta.content
 
-        yield 'token', part.choices[0]
+        yield "token", part.choices[0]
 
         msg = re.sub(r'\n+', '\n', msg)
 

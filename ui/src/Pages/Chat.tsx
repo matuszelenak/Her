@@ -1,19 +1,19 @@
 import useWebSocket from "react-use-websocket";
 import Grid from "@mui/material/Grid2";
-import { Button, Paper, Stack, TextField, Typography } from "@mui/material";
-import { useEffect, useState } from "react";
+import {Box, Button, Stack, TextField, Typography} from "@mui/material";
+import {useEffect, useState} from "react";
 import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
-import { arrayBufferToBase64 } from "../utils/encoding.ts";
-import { useMicVAD } from "../utils/vad/useMic.tsx";
-import { Token, WebSocketEvent, WebsocketEventType } from "../types.ts";
-import { ChatList } from "../Components/ChatList.tsx";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { axiosDefault } from "../api.ts";
-import { DependencyToolbar } from "../Components/DependencyToolbar.tsx";
+import {arrayBufferToBase64} from "../utils/encoding.ts";
+import {useMicVAD} from "../utils/vad/useMic.tsx";
+import {Token, WebSocketEvent, WebsocketEventType} from "../types.ts";
+import {ChatList} from "../Components/ChatList.tsx";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {axiosDefault} from "../api.ts";
+import {DependencyToolbar} from "../Components/DependencyToolbar.tsx";
 import remarkGfm from "remark-gfm";
-import { useNavigate, useParams } from "react-router-dom";
-import { usePlayer } from "../hooks/useAudioPlayer.ts";
+import {useNavigate, useParams} from "react-router-dom";
+import {usePlayer} from "../hooks/useAudioPlayer.ts";
 
 
 type Message = {
@@ -22,14 +22,14 @@ type Message = {
 }
 
 
-type UserMessage = {
-    completedWords: string[],
-    uncertainWords: string[]
+type LiveTranscribedText = {
+    stableWords: string[],
+    undeterminedWords: string[]
 }
 
 
-const renderUserMessage = (msg: UserMessage) => {
-    return `${msg.completedWords.join(' ')} ${msg.uncertainWords.join(' ')}`
+const renderUserMessage = (msg: LiveTranscribedText) => {
+    return `${msg.stableWords.join(' ')} ${msg.undeterminedWords.join(' ')}`
 }
 
 
@@ -38,11 +38,11 @@ export const Chat = () => {
     const queryClient = useQueryClient()
     const navigate = useNavigate()
     const [messages, setMessages] = useState<Message[]>([])
-    const [userMessage, setUserMessage] = useState<UserMessage>({
-        completedWords: [],
-        uncertainWords: []
+    const [inProgressUserMessage, setInProgressUserMessage] = useState<LiveTranscribedText>({
+        stableWords: [],
+        undeterminedWords: []
     })
-    const [agentMessage, setAgentMessage] = useState<Array<Token>>([])
+    const [inProgressAgentMessage, setInProgressAgentMessage] = useState<Array<Token>>([])
     const [speechEnabled, setSpeechEnabled] = useState(true)
 
     const {queueAudio, finishedId, stop: audioPlayerStop} = usePlayer()
@@ -52,9 +52,9 @@ export const Chat = () => {
             url: `/chat/${chatId}`,
             method: 'get'
         }).then(({data}) => {
-            setUserMessage({
-                completedWords: [],
-                uncertainWords: []
+            setInProgressUserMessage({
+                stableWords: [],
+                undeterminedWords: []
             })
             setMessages(data.messages.map((msg: any) => ({
                 ...msg,
@@ -80,6 +80,32 @@ export const Chat = () => {
         }
     }, [chatId]);
 
+    const commitUserMessage = () => {
+        setMessages((previousMessages: Message[]) => [
+            ...previousMessages,
+            {
+                role: 'user',
+                message: [renderUserMessage(inProgressUserMessage)]
+            }
+        ])
+        setInProgressUserMessage({
+            stableWords: [],
+            undeterminedWords: []
+        })
+    }
+
+    const commitAgentMessage = () => {
+        setMessages((previousMessages: Message[]) => [
+                ...previousMessages,
+                {
+                    role: 'assistant',
+                    message: inProgressAgentMessage.map(token => token.message.content.replaceAll('\n', '\r\n'))
+                }
+            ]
+        )
+        setInProgressAgentMessage(() => [])
+    }
+
     const {
         sendJsonMessage,
     } = useWebSocket(
@@ -88,50 +114,53 @@ export const Chat = () => {
             onMessage: async (event: WebSocketEventMap['message']) => {
                 const message = JSON.parse(event.data) as WebSocketEvent
 
-                console.log(`Received websocket msg`)
-                console.log(message)
-
                 switch (message.type) {
                     case WebsocketEventType.USER_TRANSCRIPTION_INVALIDATION:
                         break;
+
                     case WebsocketEventType.TOKEN:
-                        if (userMessage.completedWords.length > 0) {
-                            setMessages((prevState: Message[]) => [...prevState, {
-                                role: 'user',
-                                message: [renderUserMessage(userMessage)]
-                            }])
-                            setUserMessage({
-                                completedWords: [],
-                                uncertainWords: []
-                            })
+                        if (inProgressUserMessage.stableWords.length > 0) {
+                            commitUserMessage()
                         }
-                        setAgentMessage((prevState) => ([...prevState, message.token]))
+                        if (message.token != null) {
+                            setInProgressAgentMessage((prevState) => ([...prevState, message.token]))
+                        } else {
+                            commitAgentMessage()
+                        }
+
                         break;
+
                     case WebsocketEventType.USER_TRANSCRIPTION:
                         audioPlayerStop()
                         if (message.segment.complete) {
-                            setUserMessage((prev) => ({
-                                completedWords: [...prev.completedWords, ...message.segment.words],
-                                uncertainWords: []
+                            setInProgressUserMessage((prev) => ({
+                                stableWords: [...prev.stableWords, ...message.segment.words],
+                                undeterminedWords: []
                             }))
                         } else {
-                            setUserMessage((prev) => ({
-                                completedWords: prev.completedWords,
-                                uncertainWords: message.segment.words
+                            setInProgressUserMessage((prev) => ({
+                                stableWords: prev.stableWords,
+                                undeterminedWords: message.segment.words
                             }))
                         }
                         break;
+
                     case WebsocketEventType.SPEECH_FILE:
                         await queueAudio(message)
                         break;
+
                     case WebsocketEventType.ASSISTANT_SPEECH_START:
                         audioPlayerStop()
                         break;
+
                     case WebsocketEventType.MANUAL_PROMPT:
-                        setUserMessage({
-                            completedWords: [message.text],
-                            uncertainWords: []
-                        })
+                        setMessages((previousMessages: Message[]) => [
+                            ...previousMessages,
+                            {
+                                role: 'user',
+                                message: [message.text]
+                            }
+                        ])
                         break;
                 }
 
@@ -150,25 +179,14 @@ export const Chat = () => {
                 type: 'finished_speaking'
             })
         }
-    }, [finishedId]);
-
-    useEffect(() => {
-        if (agentMessage.length > 0 && agentMessage[agentMessage.length - 1].done) {
-            setMessages((prevState: Message[]) => {
-                return [...prevState, {
-                    role: 'assistant',
-                    message: agentMessage.map(token => token.message.content.replaceAll('\n', '\r\n'))
-                }]
-            })
-            setAgentMessage((_) => [])
-        }
-    }, [agentMessage])
+    }, [finishedId, sendJsonMessage]);
 
     const [notifySpeechEnd, setNotifySpeechEnd] = useState<NodeJS.Timeout | null>(null)
     const [speechConfirmDelay, setSpeechConfirmDelay] = useState(2000)
 
     const vad = useMicVAD({
         startOnLoad: false,
+        model: 'v5',
         onSpeechFrames: (audio: Float32Array) => {
             sendJsonMessage({
                 'type': 'samples',
@@ -207,32 +225,50 @@ export const Chat = () => {
                                 <Stack key={i} direction="row"
                                        justifyContent={message.role === 'assistant' ? 'flex-start' : 'flex-end'}
                                        sx={{margin: 2}}>
-                                    <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
+                                    <Box sx={{
+                                        maxWidth: '70%',
+                                        borderRadius: 4,
+                                        padding: 2,
+                                        border: 2,
+                                        borderColor: 'darkgrey',
+                                        bgcolor: 'background.paper'
+                                    }}>
                                         <Markdown remarkPlugins={[remarkGfm]}>
                                             {message.message.join('')}
                                         </Markdown>
-
-                                    </Paper>
+                                    </Box>
                                 </Stack>
                             ))}
-                            {(userMessage.uncertainWords.length > 0 || userMessage.completedWords.length > 0) && (
+                            {(inProgressUserMessage.undeterminedWords.length > 0 || inProgressUserMessage.stableWords.length > 0) && (
                                 <Stack direction="row" justifyContent={'flex-end'} sx={{margin: 2}}>
-                                    <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
+                                    <Box sx={{
+                                        maxWidth: '70%',
+                                        borderRadius: 4,
+                                        padding: 2,
+                                        border: 2,
+                                        borderColor: 'darkgrey',
+                                        bgcolor: 'background.paper'
+                                    }}>
                                         <Markdown remarkPlugins={[remarkGfm]}>
-                                            {renderUserMessage(userMessage)}
+                                            {renderUserMessage(inProgressUserMessage)}
                                         </Markdown>
-                                    </Paper>
+                                    </Box>
                                 </Stack>
                             )}
-                            {agentMessage.length > 0 && (
+                            {inProgressAgentMessage.length > 0 && (
                                 <Stack direction="row" justifyContent={'flex-start'} sx={{margin: 2}}>
-                                    <Paper elevation={2} square={false} sx={{padding: 2, maxWidth: '70%'}}>
-                                        <Typography>
-                                            <Markdown remarkPlugins={[remarkGfm]}>
-                                                {agentMessage.map(token => token.message.content.replaceAll('\n', '\r\n')).join('')}
-                                            </Markdown>
-                                        </Typography>
-                                    </Paper>
+                                    <Box sx={{
+                                        maxWidth: '70%',
+                                        borderRadius: 4,
+                                        padding: 2,
+                                        border: 2,
+                                        borderColor: 'darkgrey',
+                                        bgcolor: 'background.paper'
+                                    }}>
+                                        <Markdown remarkPlugins={[remarkGfm]}>
+                                            {inProgressAgentMessage.map(token => token.message.content.replaceAll('\n', '\r\n')).join('')}
+                                        </Markdown>
+                                    </Box>
                                 </Stack>
                             )}
                         </ScrollableFeed>

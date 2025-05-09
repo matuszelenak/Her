@@ -14,10 +14,11 @@ logger = get_logger(__name__)
 async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
     tts_provider: TextToSpeechProvider = providers['tts']
     try:
-        await session.send_event(WsSendAssistantSpeechStartEvent())
+        if session.speech_enabled:
+            await session.send_event(WsSendAssistantSpeechStartEvent())
+
         order = 0
         while True:
-            logger.debug('Awaiting TTS queue')
             sentence = await llm_response_queue.get()
             if sentence is None:
                 break
@@ -40,12 +41,13 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
             with open(file_path, 'wb') as f:
                 f.write(bytes(audio_bytearray))
 
-            event = WsSendSpeechEvent(
-                filename=str(file_path.relative_to('/tts_output')),
-                order=order,
-                text=sentence
+            await session.send_event(
+                WsSendSpeechEvent(
+                    filename=str(file_path.relative_to('/tts_output')),
+                    order=order,
+                    text=sentence
+                )
             )
-            await session.send_event(event)
 
             order += 1
     except asyncio.CancelledError:

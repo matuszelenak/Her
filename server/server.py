@@ -13,10 +13,10 @@ from db.session import get_db
 from endpoints.audio import audio_router
 from endpoints.chat import chat_router
 from models.received_events import WsReceiveSamplesEvent, WsReceiveEvent, WsReceiveSpeechEndEvent, \
-    WsReceiveEventUnion, WsReceiveTextPrompt, WsReceiveSpeechPromptEvent, WsReceiveAgentSpeechEnd
+    WsReceiveTextPrompt, WsReceiveSpeechPromptEvent, WsReceiveAgentSpeechEnd
 from models.sent_events import WsManualPromptEvent
 from providers import providers
-from tasks.coordination import trigger_llm
+from tasks.coordination import trigger_agent_response
 from tasks.stt import stt_task
 from utils.configuration import get_previous_or_default_config
 from utils.log import get_logger
@@ -79,8 +79,6 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
             event_data = await websocket.receive_json()
             event = WsReceiveEvent.model_validate({'event': event_data}).event
 
-            logger.debug(event.type)
-
             if isinstance(event, WsReceiveSamplesEvent):
                 session.user_speaking_status = (True, datetime.now())
                 if session.stt_task is None:
@@ -101,14 +99,14 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
                     )
                 )
 
-                trigger_llm(session)
+                trigger_agent_response(session)
 
             elif isinstance(event, WsReceiveSpeechPromptEvent):
                 if session.prompt:
                     warrants_response = await should_agent_respond(session)
 
                     if warrants_response:
-                        trigger_llm(session)
+                        trigger_agent_response(session)
                     else:
                         pass
                         # await session.send_event({

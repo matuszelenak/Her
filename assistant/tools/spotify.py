@@ -5,7 +5,7 @@ import os
 
 os.environ['SPOTIPY_CLIENT_ID'] = '1623bb0d6fa24a8fbe4d8bf3eff226f9'
 os.environ['SPOTIPY_CLIENT_SECRET'] = '3789fe6c0113432499076997c95362e2'
-os.environ['SPOTIPY_REDIRECT_URI'] = 'http://localhost:8000'
+os.environ['SPOTIPY_REDIRECT_URI'] = 'http://127.0.0.1:8009'
 scope = "user-read-playback-state,user-modify-playback-state"
 
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope))

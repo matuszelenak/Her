@@ -25,7 +25,7 @@ export enum WebsocketEventType {
 
 export interface TokenEvent {
     type: WebsocketEventType.TOKEN
-    token: Token
+    token: Token | null
 }
 
 export interface STTOutputEvent {

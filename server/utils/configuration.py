@@ -5,7 +5,7 @@ from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class WhisperConfig(BaseModel):
+class STTConfig(BaseModel):
     model: Literal['medium.en', 'small.en', 'large-v3']
     language: Literal['en', 'cs']
 
@@ -21,7 +21,7 @@ class AppConfig(BaseModel):
 
 
 class SessionConfig(BaseModel):
-    whisper: WhisperConfig
+    whisper: STTConfig
     tts: TTSConfig
     app: AppConfig
 

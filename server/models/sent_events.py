@@ -1,4 +1,4 @@
-from typing import Literal, List, Union
+from typing import Literal, Union
 
 from pydantic import BaseModel
 
@@ -11,7 +11,7 @@ class WsManualPromptEvent(BaseModel):
 
 
 class WsSendTokenEvent(BaseModel):
-    token: Token
+    token: Token | None
     type: Literal['token'] = 'token'
 
 
