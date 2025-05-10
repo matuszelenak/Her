@@ -7,15 +7,15 @@ from providers import providers
 from providers.base import TextToSpeechProvider
 from utils.log import get_logger
 from utils.perf import ElapsedTime
-from utils.session import Session
+from models.session import Session
 
 logger = get_logger(__name__)
 
 
 async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
-    tts_provider: TextToSpeechProvider = providers['tts']
+    tts_provider: TextToSpeechProvider = providers['tts'][session.chat.config.tts.provider]
     try:
-        if session.speech_enabled:
+        if session.chat.config.app.voice_output_enabled:
             await session.send_event(WsSendAssistantSpeechStartEvent())
 
         order = 0
@@ -28,7 +28,7 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
             if not sentence:
                 continue
 
-            if not session.speech_enabled:
+            if not session.chat.config.app.voice_output_enabled:
                 continue
 
             with ElapsedTime(f'TTS for "{sentence}"'):

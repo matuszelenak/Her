@@ -1,6 +1,14 @@
+from typing import Literal
+
 import httpx
+from pydantic import BaseModel
 
 from providers.base import TextToSpeechProvider
+
+
+class OrpheusConfig(BaseModel):
+    provider: Literal['orpheus']
+    voice: Literal["dan", "jess", "leah", "leo", "mia", "tara", "zac", "zoe"] = 'tara'
 
 
 class OrpheusAudioProvider(TextToSpeechProvider):
@@ -23,12 +31,10 @@ class OrpheusAudioProvider(TextToSpeechProvider):
             response.raise_for_status()
             return bytearray(response.content)
 
-
     async def get_voices(self):
         async with httpx.AsyncClient() as client:
             resp = await client.get(f'{self.base_url}/v1/audio/voices')
             return sorted(resp.json()['voices'])
-
 
     async def health_status(self):
         async with httpx.AsyncClient() as client:

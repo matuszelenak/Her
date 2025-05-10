@@ -1,28 +1,30 @@
-from typing import Literal
+from typing import Literal, Union
 
 from pydantic import BaseModel
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from providers.kokoro import KokoroConfig
+from providers.orpheus import OrpheusConfig
+
 
 class STTConfig(BaseModel):
+    provider: Literal['whisper'] = 'whisper'
     model: Literal['medium.en', 'small.en', 'large-v3']
     language: Literal['en', 'cs']
 
 
-class TTSConfig(BaseModel):
-    backend: Literal['kokoro']
-    voice: str
-
-
 class AppConfig(BaseModel):
-    prevalidate_prompt: bool
-    inactivity_timeout_ms: int
+    voice_input_enabled: bool = True
+    voice_output_enabled: bool = True
+    after_user_speech_confirmation_delay_ms: int = 1000
+    prevalidate_prompt: bool = False
+    inactivity_timeout_ms: int | None = None
 
 
 class SessionConfig(BaseModel):
-    whisper: STTConfig
-    tts: TTSConfig
+    stt: STTConfig
+    tts: Union[KokoroConfig, OrpheusConfig]
     app: AppConfig
 
 

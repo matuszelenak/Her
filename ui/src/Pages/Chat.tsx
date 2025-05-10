@@ -6,11 +6,11 @@ import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
 import {arrayBufferToBase64} from "../utils/encoding.ts";
 import {useMicVAD} from "../utils/vad/useMic.tsx";
-import {Token, WebSocketEvent, WebsocketEventType} from "../types.ts";
+import {Configuration, Token, WebSocketEvent, WebsocketEventType} from "../types.ts";
 import {ChatList} from "../Components/ChatList.tsx";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {axiosDefault} from "../api.ts";
-import {DependencyToolbar} from "../Components/DependencyToolbar.tsx";
+import {ConfigurationToolbar} from "../Components/ConfigurationToolbar.tsx";
 import remarkGfm from "remark-gfm";
 import {useNavigate, useParams} from "react-router-dom";
 import {usePlayer} from "../hooks/useAudioPlayer.ts";
@@ -37,13 +37,13 @@ export const Chat = () => {
     const {chatId} = useParams<string>();
     const queryClient = useQueryClient()
     const navigate = useNavigate()
+    const [configuration, setConfiguration] = useState<Configuration | null>(null);
     const [messages, setMessages] = useState<Message[]>([])
     const [inProgressUserMessage, setInProgressUserMessage] = useState<LiveTranscribedText>({
         stableWords: [],
         undeterminedWords: []
     })
     const [inProgressAgentMessage, setInProgressAgentMessage] = useState<Array<Token>>([])
-    const [speechEnabled, setSpeechEnabled] = useState(true)
 
     const {queueAudio, finishedId, stop: audioPlayerStop} = usePlayer()
     useQuery({
@@ -115,6 +115,11 @@ export const Chat = () => {
                 const message = JSON.parse(event.data) as WebSocketEvent
 
                 switch (message.type) {
+                    case WebsocketEventType.CONFIGURATION:
+                        setConfiguration(message.configuration)
+                        console.log(message.configuration)
+                        break
+
                     case WebsocketEventType.USER_TRANSCRIPTION_INVALIDATION:
                         break;
 
@@ -163,7 +168,6 @@ export const Chat = () => {
                         ])
                         break;
                 }
-
             },
             shouldReconnect: () => true,
             reconnectAttempts: 1000,
@@ -182,9 +186,8 @@ export const Chat = () => {
     }, [finishedId, sendJsonMessage]);
 
     const [notifySpeechEnd, setNotifySpeechEnd] = useState<NodeJS.Timeout | null>(null)
-    const [speechConfirmDelay, setSpeechConfirmDelay] = useState(2000)
 
-    const vad = useMicVAD({
+    const { pause, start } = useMicVAD({
         startOnLoad: false,
         model: 'v5',
         onSpeechFrames: (audio: Float32Array) => {
@@ -205,9 +208,19 @@ export const Chat = () => {
                 sendJsonMessage({
                     'type': 'speech_prompt_end'
                 })
-            }, speechConfirmDelay))
+            }, configuration?.app?.after_user_speech_confirmation_delay_ms || 0))
         }
     })
+
+    useEffect(() => {
+        if (configuration) {
+            if (configuration.app.voice_input_enabled) {
+                start()
+            } else {
+                pause()
+            }
+        }
+    }, [configuration, start, pause]);
 
     const [textInputPrompt, setTextInputPrompt] = useState("")
 
@@ -218,7 +231,6 @@ export const Chat = () => {
                     <ChatList/>
                 </Grid>
                 <Grid size={6} sx={{maxHeight: '100vh'}}>
-                    <Typography>{vad.listening}</Typography>
                     <Stack direction="column" justifyContent="space-between" sx={{height: "100%"}} spacing={2}>
                         <ScrollableFeed>
                             {messages.filter(({role}) => role === 'assistant' || role === 'user').map((message: Message, i: number) => (
@@ -306,23 +318,16 @@ export const Chat = () => {
                     </Stack>
                 </Grid>
                 <Grid size={3} sx={{maxHeight: '100vh'}}>
-                    <DependencyToolbar
-                        vad={vad}
-                        speech={{
-                            speaking: speechEnabled,
-                            toggleSpeaking: () => {
-                                setSpeechEnabled((prevState) => {
-                                    sendJsonMessage({
-                                        type: 'speech_toggle',
-                                        value: !prevState
-                                    })
-                                    return !prevState
-                                })
-                            },
-                            confirmDelay: speechConfirmDelay,
-                            setConfirmDelay: setSpeechConfirmDelay
+                    {configuration && <ConfigurationToolbar
+                        config={configuration}
+                        setConfigField={(path, value) => {
+                            sendJsonMessage({
+                                type: 'config_change',
+                                path: path,
+                                value: value
+                            })
                         }}
-                    />
+                    />}
                 </Grid>
             </Grid>
         </>

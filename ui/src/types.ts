@@ -8,9 +8,7 @@ export type Token = {
 
 
 export type DependencyStatus = {
-    stt: 'healthy' | 'unhealthy' | undefined
-    tts: 'healthy' | 'unhealthy'| undefined
-    llm: string[] | null
+    [key: string]: 'healthy' | 'unhealthy' | undefined
 }
 
 export enum WebsocketEventType {
@@ -20,6 +18,7 @@ export enum WebsocketEventType {
     ASSISTANT_SPEECH_START = 'assistant_speech_start',
     SPEECH_FILE = 'speech_id',
     MANUAL_PROMPT = 'manual_prompt',
+    CONFIGURATION = 'configuration'
 }
 
 
@@ -58,6 +57,11 @@ export interface ManualPromptEvent {
     text: string
 }
 
+export interface ReceivedConfigEvent {
+    type: WebsocketEventType.CONFIGURATION
+    configuration: Configuration
+}
+
 export type WebSocketEvent =
     TokenEvent
     | STTOutputEvent
@@ -65,3 +69,35 @@ export type WebSocketEvent =
     | SpeechFileEvent
     | SpeechStartEvent
     | ManualPromptEvent
+    | ReceivedConfigEvent
+
+
+export type STTConfiguration = {
+    provider: 'whisper'
+    model: 'medium.en'
+}
+
+
+export type KokoroConfiguration = {
+    provider: 'kokoro'
+    voice: 'bf_emma' | 'bf_isabella'
+}
+
+
+export type OrpheusConfiguration = {
+    provider: 'orpheus'
+    voice: 'tara'
+}
+
+
+export type Configuration = {
+    stt: STTConfiguration
+    tts: KokoroConfiguration | OrpheusConfiguration
+    app: {
+        prevalidate_prompt: boolean
+        inactivity_timeout_ms: number
+        voice_input_enabled: boolean
+        voice_output_enabled: boolean
+        after_user_speech_confirmation_delay_ms: number
+    }
+}

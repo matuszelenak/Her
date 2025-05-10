@@ -22,5 +22,5 @@ class Chat(Base):
 
     @property
     def config(self):
-        from utils.configuration import SessionConfig
+        from models.configuration import SessionConfig
         return SessionConfig.model_validate(self.config_db)

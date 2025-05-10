@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Any
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,8 +26,6 @@ class Session:
     tts_task: Optional[asyncio.Task] = None
 
     prompt: Optional[str] = None
-
-    speech_enabled: bool = True
 
     last_interaction: Optional[datetime.datetime] = None
 
@@ -58,7 +56,7 @@ class Session:
         await self.db.commit()
         await self.db.refresh(self.chat)
 
-    async def set_config_from_event(self, field, value):
+    async def set_config_from_event(self, field: str, value: Any):
         curr = self.chat.config_db
         spl = field.split('.')
         for part in spl[:-1]:

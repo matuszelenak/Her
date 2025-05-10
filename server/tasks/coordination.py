@@ -2,7 +2,7 @@ import asyncio
 
 from tasks.llm import llm_query_task
 from utils.log import get_logger
-from utils.session import Session
+from models.session import Session
 
 logger = get_logger(__name__)
 

@@ -1,3 +1,10 @@
+from pydantic import BaseModel
+
+
+class ProviderConfig(BaseModel):
+    provider: str
+
+
 class BaseProvider:
     async def health_status(self):
         raise NotImplementedError

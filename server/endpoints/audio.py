@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from providers import providers
 from providers.base import TextToSpeechProvider
@@ -6,12 +6,13 @@ from providers.base import TextToSpeechProvider
 audio_router = APIRouter()
 
 
-@audio_router.get('/voices')
-async def get_voices():
-    tts_provider: TextToSpeechProvider = providers.get('tts')
-    if tts_provider:
+@audio_router.get('/voices/{provider}')
+async def get_voices(provider: str):
+    try:
+        tts_provider: TextToSpeechProvider = providers["tts"][provider]
         voices = await tts_provider.get_voices()
 
         return voices
 
-    return []
+    except KeyError:
+        raise HTTPException(status_code=404)

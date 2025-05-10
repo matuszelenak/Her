@@ -15,7 +15,7 @@ from models.sent_events import WsSendTokenEvent
 from tasks.tts import tts_task
 from utils.log import get_logger
 from utils.sanitization import clean_text_for_tts
-from utils.session import Session
+from models.session import Session
 
 logger = get_logger(__name__)
 

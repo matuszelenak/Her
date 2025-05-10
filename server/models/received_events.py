@@ -1,4 +1,4 @@
-from typing import Union, Literal
+from typing import Union, Literal, Any
 
 from pydantic import BaseModel, Field
 
@@ -25,14 +25,10 @@ class WsReceiveAgentSpeechEnd(BaseModel):
     type: Literal['finished_speaking']
 
 
-
-WsReceiveEventUnion = Union[
-    WsReceiveSamplesEvent,
-    WsReceiveSpeechEndEvent,
-    WsReceiveSpeechPromptEvent,
-    WsReceiveTextPrompt,
-    WsReceiveAgentSpeechEnd
-]
+class WsReceiveConfigChange(BaseModel):
+    type: Literal['config_change']
+    path: str
+    value: Any
 
 
 class WsReceiveEvent(BaseModel):
@@ -41,5 +37,6 @@ class WsReceiveEvent(BaseModel):
         WsReceiveSpeechEndEvent,
         WsReceiveSpeechPromptEvent,
         WsReceiveTextPrompt,
-        WsReceiveAgentSpeechEnd
+        WsReceiveAgentSpeechEnd,
+        WsReceiveConfigChange
     ] = Field(discriminator='type')

@@ -3,6 +3,7 @@ from typing import Literal, Union
 from pydantic import BaseModel
 
 from models.base import Token, TranscriptionSegment
+from models.configuration import SessionConfig
 
 
 class WsManualPromptEvent(BaseModel):
@@ -31,10 +32,18 @@ class WsSendSpeechEvent(BaseModel):
     type: Literal['speech_id'] = 'speech_id'
 
 
+class WsSendConfigurationEvent(BaseModel):
+    configuration: SessionConfig
+    type: Literal['configuration'] = 'configuration'
+
+    model_config = dict(arbitrary_types_allowed=True)
+
+
 WsSendEvent = Union[
     WsManualPromptEvent,
     WsSendTokenEvent,
     WsSendTranscriptionEvent,
     WsSendAssistantSpeechStartEvent,
-    WsSendSpeechEvent
+    WsSendSpeechEvent,
+    WsSendConfigurationEvent
 ]

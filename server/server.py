@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from uuid import uuid4, UUID
 
+import pydantic
 import starlette
 from fastapi import FastAPI, WebSocket, Depends
 from sqlalchemy import select
@@ -14,14 +15,14 @@ from db.session import get_db
 from endpoints.audio import audio_router
 from endpoints.chat import chat_router
 from models.received_events import WsReceiveSamplesEvent, WsReceiveEvent, WsReceiveSpeechEndEvent, \
-    WsReceiveTextPrompt, WsReceiveSpeechPromptEvent, WsReceiveAgentSpeechEnd
-from models.sent_events import WsManualPromptEvent
+    WsReceiveTextPrompt, WsReceiveSpeechPromptEvent, WsReceiveAgentSpeechEnd, WsReceiveConfigChange
+from models.sent_events import WsManualPromptEvent, WsSendConfigurationEvent
 from providers import providers
 from tasks.coordination import trigger_agent_response
 from tasks.stt import stt_task
-from utils.configuration import get_previous_or_default_config
+from models.configuration import get_previous_or_default_config
 from utils.log import get_logger
-from utils.session import Session
+from models.session import Session
 from utils.validation import should_agent_respond
 
 app = FastAPI()
@@ -42,7 +43,9 @@ async def health_endpoint(websocket: WebSocket):
         while True:
             await websocket.receive_json()
             await websocket.send_json({
-                provider_name: await p.health_status() for provider_name, p in providers.items()
+                provider_name: await provider.health_status()
+                for provider_type, providers_of_type in providers.items()
+                for provider_name, provider in providers_of_type.items()
             })
     except starlette.websockets.WebSocketDisconnect:
         pass
@@ -55,7 +58,6 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
     logger.debug(f"Client connected to chat {chat_id}")
 
     session_id = str(uuid4())
-    config = await get_previous_or_default_config(db)
 
     query = select(Chat).filter(Chat.id == chat_id)
     results = await db.execute(query)
@@ -63,6 +65,7 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
 
     if chat is None:
         logger.debug(f"New chat initiated")
+        config = await get_previous_or_default_config(db)
         chat = Chat(config_db=config)
         chat._id = UUID(chat_id)
 
@@ -74,12 +77,21 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
 
     session.client_socket = websocket
 
+    await session.send_event(
+        WsSendConfigurationEvent(configuration=session.chat.config)
+    )
+
     try:
         received_speech_queue = asyncio.Queue()
 
         while True:
             event_data = await websocket.receive_json()
-            event = WsReceiveEvent.model_validate({'event': event_data}).event
+
+            try:
+                event = WsReceiveEvent.model_validate({'event': event_data}).event
+            except pydantic.ValidationError:
+                logger.debug(f'Received invalid socket event: {event_data}')
+                continue
 
             if isinstance(event, WsReceiveSamplesEvent):
                 if session.stt_task is None:
@@ -116,9 +128,11 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
             elif isinstance(event, WsReceiveAgentSpeechEnd):
                 session.last_interaction = datetime.now()
 
-            # elif data['event'] == 'speech_toggle':
-            #     session.speech_enabled = data['value']
-            #     logger.debug(f'Speech {session.speech_enabled}')
+            elif isinstance(event, WsReceiveConfigChange):
+                await session.set_config_from_event(event.path, event.value)
+                await session.send_event(
+                    WsSendConfigurationEvent(configuration=session.chat.config)
+                )
 
 
     except starlette.websockets.WebSocketDisconnect:

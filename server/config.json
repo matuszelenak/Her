@@ -1,10 +1,11 @@
 {
-  "whisper": {
+  "stt": {
+    "provider": "whisper",
     "model": "medium.en",
     "language": "en"
   },
   "tts": {
-    "backend": "orpheus",
+    "provider": "kokoro",
     "voice": "bf_emma"
   },
   "app": {

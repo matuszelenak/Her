@@ -1,6 +1,6 @@
 import {Dispatch, SetStateAction, useEffect, useState} from "react";
 
-export function useDelayedInput<S>(initialValue: S, delayMs: number): [S, S, Dispatch<SetStateAction<S>>] {
+export function useDelayedInput<S>(initialValue: S, delayMs: number): [S, Dispatch<SetStateAction<S>>, S] {
     const [realValue, setRealValue] = useState<S>(initialValue)
     const [delayedValue, setDelayedValue] = useState<S>(initialValue)
 
@@ -10,7 +10,7 @@ export function useDelayedInput<S>(initialValue: S, delayMs: number): [S, S, Dis
         }, delayMs)
 
         return () => clearTimeout(delayDebounceFn)
-    }, [realValue])
+    }, [realValue, delayMs])
 
-    return [delayedValue, realValue, setRealValue]
+    return [delayedValue, setRealValue, realValue]
 }
