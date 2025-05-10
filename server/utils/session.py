@@ -25,10 +25,9 @@ class Session:
     llm_task: Optional[asyncio.Task] = None
     tts_task: Optional[asyncio.Task] = None
 
-    user_speaking_status: Tuple[bool, datetime.datetime] = (False, None)
     prompt: Optional[str] = None
 
-    speech_enabled: bool = False
+    speech_enabled: bool = True
 
     last_interaction: Optional[datetime.datetime] = None
 

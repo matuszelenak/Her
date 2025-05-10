@@ -1,4 +1,5 @@
 import asyncio
+from asyncio import CancelledError
 
 from models.sent_events import WsSendTranscriptionEvent
 from providers import providers, WhisperProvider
@@ -9,11 +10,11 @@ logger = get_logger(__name__)
 
 
 async def stt_task(session: Session, received_speech_queue: asyncio.Queue):
-    stt_provider: WhisperProvider = providers['stt']
+    try:
+        stt_provider: WhisperProvider = providers['stt']
 
-    prompt_words = []
-    async for transcribed_segment in stt_provider.continuous_transcription(received_speech_queue):
-        try:
+        prompt_words = []
+        async for transcribed_segment in stt_provider.continuous_transcription(received_speech_queue):
             await session.send_event(WsSendTranscriptionEvent(segment=transcribed_segment))
 
             if transcribed_segment.complete:
@@ -24,5 +25,9 @@ async def stt_task(session: Session, received_speech_queue: asyncio.Queue):
                 logger.debug(f'Setting prompt to {session.prompt}')
 
                 prompt_words = []
-        except Exception as e:
-            logger.error(str(e), exc_info=True)
+
+    except CancelledError:
+        logger.debug('STT task cancelled')
+
+    except Exception as e:
+        logger.error('Exception in STT task', exc_info=True)

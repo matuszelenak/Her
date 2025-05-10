@@ -16,17 +16,14 @@ from tools.spotify import play_song, stop_playback, change_volume, next_song, pr
 logger = get_logger(__name__)
 
 gpt_model = OpenAIModel(
-    'cognitivecomputations/Qwen3-30B-A3B-AWQ',
-    provider=OpenAIProvider(api_key='none', base_url='http://10.0.0.2:11433/v1')
+    os.environ.get("OPENAI_MODEL"),
+    provider=OpenAIProvider(api_key='none', base_url=os.environ.get('OPENAI_API_URL')),
 )
 
 knowledge_agent = Agent(
     gpt_model,
-    system_prompt="You are a conversational agent that answers questions about the world."
+    instructions="You are a conversational agent that answers questions about the world."
                   "For anything but the most obvious questions use the web search tool.",
-    model_settings={
-        'temperature': 0.5
-    }
 )
 
 
@@ -48,7 +45,7 @@ async def web_search_tool(query: str):
 
 home_automation_agent = Agent(
     gpt_model,
-    system_prompt="""
+    instructions="""
     You are a home assistant agent, capable of calling tools that manage the smart devices in the users home
     """,
     tools=[
@@ -62,13 +59,18 @@ home_automation_agent = Agent(
 
 supervisor_agent = Agent(
     gpt_model,
-    system_prompt="""
-    You are a cheery conversation agent with the personality of a cute anime waifu.
+    instructions="""
+    You are a helpful AI assistant used for voice conversations with a user named Matúš.
+    Matúš is a 30-year old man living in Bratislava, Slovakia. He is also the author of the voice assistant software of which you are the thinking part.
+    
     You have access to tools that you can call if you decide it is necessary for handling the user's request.
     For user queries regarding world knowledge, call the knowledge agent tool.
     To handle requests regarding house actions, like playing music, setting the temperature etc, call the home automation agent and then just confirm that the action has been performed.
     If there is not a need for a tool call, just converse with the user normally.
-    Do not use emojis in your response.
+    
+    Keep your response concise and in a casual, conversational tone.
+    Format your response so that it can be directly fed to a text-to-speech software: meaning there should be no markdown or other formatting, the numbers should be written out in word form (not as digits) and do not use emojis!
+    /no_think
     """
 )
 

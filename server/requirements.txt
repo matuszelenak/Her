@@ -13,3 +13,4 @@ alembic
 psycopg2-binary
 asyncpg
 openai
+demoji==1.1.0

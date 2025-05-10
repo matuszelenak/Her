@@ -14,6 +14,7 @@ from models.base import Token, Message
 from models.sent_events import WsSendTokenEvent
 from tasks.tts import tts_task
 from utils.log import get_logger
+from utils.sanitization import clean_text_for_tts
 from utils.session import Session
 
 logger = get_logger(__name__)
@@ -56,10 +57,11 @@ async def llm_query_task(session: Session, prompt: str):
             elif resp_type == 'sentence':
                 content: str
 
-                cleaned = strip_markdown(content)
+                cleaned = clean_text_for_tts(content)
 
-                logger.debug(f'Adding to TTS queue {cleaned}')
-                await llm_response_queue.put(cleaned)
+                if len(cleaned.strip()) > 2:
+                    logger.debug(f'Adding to TTS queue {cleaned}')
+                    await llm_response_queue.put(cleaned)
 
         await session.append_message({
             'role': 'assistant',

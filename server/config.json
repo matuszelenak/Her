@@ -4,8 +4,8 @@
     "language": "en"
   },
   "tts": {
-    "backend": "kokoro",
-    "voice": "bf_isabella"
+    "backend": "orpheus",
+    "voice": "bf_emma"
   },
   "app": {
     "prevalidate_prompt": true,

@@ -17,7 +17,8 @@ class OrpheusAudioProvider(TextToSpeechProvider):
                     "voice": voice,
                     "response_format": "wav",
                     "stream": False,
-                }
+                },
+                timeout=10000
             )
             response.raise_for_status()
             return bytearray(response.content)

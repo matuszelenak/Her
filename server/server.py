@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime
 from uuid import uuid4, UUID
 
@@ -51,7 +52,7 @@ async def health_endpoint(websocket: WebSocket):
 async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = Depends(get_db)):
     await websocket.accept()
 
-    logger.debug(f"New client connected")
+    logger.debug(f"Client connected to chat {chat_id}")
 
     session_id = str(uuid4())
     config = await get_previous_or_default_config(db)
@@ -61,6 +62,7 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
     chat = results.scalar()
 
     if chat is None:
+        logger.debug(f"New chat initiated")
         chat = Chat(config_db=config)
         chat._id = UUID(chat_id)
 
@@ -80,17 +82,15 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
             event = WsReceiveEvent.model_validate({'event': event_data}).event
 
             if isinstance(event, WsReceiveSamplesEvent):
-                session.user_speaking_status = (True, datetime.now())
                 if session.stt_task is None:
                     session.stt_task = asyncio.create_task(stt_task(session, received_speech_queue))
                 await received_speech_queue.put(event.data)
 
             elif isinstance(event, WsReceiveSpeechEndEvent):
-                logger.debug('Speak end')
-                session.user_speaking_status = (False, datetime.now())
                 await received_speech_queue.put(None)
 
             elif isinstance(event, WsReceiveTextPrompt):
+                logging.debug('Received manual prompt')
                 session.prompt = f'{session.prompt or ""}{event.prompt}'
 
                 await session.send_event(
@@ -108,7 +108,7 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
                     if warrants_response:
                         trigger_agent_response(session)
                     else:
-                        pass
+                        session.prompt = None
                         # await session.send_event({
                         #     'type': 'user_speech_transcription_invalidation'
                         # })

@@ -6,6 +6,7 @@ from models.sent_events import WsSendSpeechEvent, WsSendAssistantSpeechStartEven
 from providers import providers
 from providers.base import TextToSpeechProvider
 from utils.log import get_logger
+from utils.perf import ElapsedTime
 from utils.session import Session
 
 logger = get_logger(__name__)
@@ -30,9 +31,8 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
             if not session.speech_enabled:
                 continue
 
-            logger.debug(f'Submitting for TTS {sentence}')
-
-            audio_bytearray = await tts_provider.generate_audio(sentence, session.chat.config.tts.voice)
+            with ElapsedTime(f'TTS for "{sentence}"'):
+                audio_bytearray = await tts_provider.generate_audio(sentence, session.chat.config.tts.voice)
 
             folder_path = Path(f'/tts_output/{session.chat.id}/{len(session.chat)}')
             folder_path.mkdir(parents=True, exist_ok=True)
@@ -54,5 +54,5 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
         logger.debug('TTS task cancelled')
 
     except Exception as e:
-        logger.error('Exception in TTS receiver', exc_info=True)
+        logger.error('Exception in TTS task', exc_info=True)
         logger.error(str(e))
