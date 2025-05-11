@@ -47,7 +47,18 @@ export const ChatList = () => {
                 <Typography variant="h5">New chat</Typography>
             </NavLink>
             {chats.map((chat) => (
-                <Stack direction="row" alignContent="center" key={chat.id}>
+                <Stack
+                    direction="row"
+                    alignContent="center"
+                    key={chat.id}
+                    justifyContent="space-between"
+                    sx={{
+                        padding: 1,
+                        border: 2,
+                        borderColor: 'darkgrey',
+                        maxWidth: 300
+                    }}
+                >
                     <NavLink
                         style={{textDecoration: 'none', margin: 0, padding: 0}}
                         key={chat.id}

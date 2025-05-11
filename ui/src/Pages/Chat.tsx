@@ -6,26 +6,44 @@ import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
 import {arrayBufferToBase64} from "../utils/encoding.ts";
 import {useMicVAD} from "../utils/vad/useMic.tsx";
-import {Configuration, Token, WebSocketEvent, WebsocketEventType} from "../types.ts";
+import {Configuration, Message, Token, WebSocketEvent, WebsocketEventType} from "../types.ts";
 import {ChatList} from "../Components/ChatList.tsx";
-import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {useQuery} from "@tanstack/react-query";
 import {axiosDefault} from "../api.ts";
 import {ConfigurationToolbar} from "../Components/ConfigurationToolbar.tsx";
 import remarkGfm from "remark-gfm";
-import {useNavigate, useParams} from "react-router-dom";
+import {useParams} from "react-router-dom";
 import {usePlayer} from "../hooks/useAudioPlayer.ts";
-
-
-type Message = {
-    role: 'user' | 'assistant' | 'tool'
-    content: string
-}
 
 
 type LiveTranscribedText = {
     stableWords: string[],
     undeterminedWords: string[]
 }
+
+
+type MessageBubbleProps = {
+    msg: string,
+    role: 'assistant' | 'user'
+}
+
+
+const MessageBubble = (props: MessageBubbleProps) =>
+    <Stack direction="row" justifyContent={props.role == 'assistant' ? 'flex-start' : 'flex-end'} sx={{margin: 2}}>
+        <Box sx={{
+            maxWidth: '70%',
+            borderRadius: 4,
+            paddingRight: 2,
+            paddingLeft: 2,
+            border: 2,
+            borderColor: 'darkgrey',
+            bgcolor: 'background.paper'
+        }}>
+            <Markdown remarkPlugins={[remarkGfm]}>
+                {props.msg}
+            </Markdown>
+        </Box>
+    </Stack>
 
 
 const renderUserMessage = (msg: LiveTranscribedText) => {
@@ -35,8 +53,6 @@ const renderUserMessage = (msg: LiveTranscribedText) => {
 
 export const Chat = () => {
     const {chatId} = useParams<string>();
-    const queryClient = useQueryClient()
-    const navigate = useNavigate()
     const [configuration, setConfiguration] = useState<Configuration | null>(null);
     const [messages, setMessages] = useState<Message[]>([])
     const [inProgressUserMessage, setInProgressUserMessage] = useState<LiveTranscribedText>({
@@ -44,6 +60,7 @@ export const Chat = () => {
         undeterminedWords: []
     })
     const [inProgressAgentMessage, setInProgressAgentMessage] = useState<Array<Token>>([])
+    const [textInputPrompt, setTextInputPrompt] = useState("")
 
     const {queueAudio, finishedId, stop: audioPlayerStop} = usePlayer()
     useQuery({
@@ -62,21 +79,6 @@ export const Chat = () => {
         enabled: !!chatId
     })
 
-    useEffect(() => {
-        const getNewChatId = async () => {
-            const newChatId = await axiosDefault({
-                url: `/chat/new`,
-                method: 'post'
-            }).then(({data}: { data: string }) => data)
-            navigate(`/chat/${newChatId}`)
-            await queryClient.invalidateQueries({queryKey: ['chat_list']})
-        }
-
-        if (!chatId) {
-            getNewChatId()
-        }
-    }, [chatId]);
-
     const commitUserMessage = () => {
         setMessages((previousMessages: Message[]) => [
             ...previousMessages,
@@ -93,13 +95,12 @@ export const Chat = () => {
 
     const commitAgentMessage = () => {
         setMessages((previousMessages: Message[]) => [
-                ...previousMessages,
-                {
-                    role: 'assistant',
-                    content: inProgressAgentMessage.map(token => token.message.content.replaceAll('\n', '\r\n')).join('')
-                }
-            ]
-        )
+            ...previousMessages,
+            {
+                role: 'assistant',
+                content: inProgressAgentMessage.map(token => token.message.content.replaceAll('\n', '\r\n')).join('')
+            }
+        ])
         setInProgressAgentMessage(() => [])
     }
 
@@ -114,7 +115,6 @@ export const Chat = () => {
                 switch (message.type) {
                     case WebsocketEventType.CONFIGURATION:
                         setConfiguration(message.configuration)
-                        console.log(message.configuration)
                         break
 
                     case WebsocketEventType.USER_TRANSCRIPTION_INVALIDATION:
@@ -184,7 +184,7 @@ export const Chat = () => {
 
     const [notifySpeechEnd, setNotifySpeechEnd] = useState<NodeJS.Timeout | null>(null)
 
-    const { pause, start } = useMicVAD({
+    const {pause, start} = useMicVAD({
         startOnLoad: false,
         model: 'v5',
         onSpeechFrames: (audio: Float32Array) => {
@@ -219,114 +219,75 @@ export const Chat = () => {
         }
     }, [configuration, start, pause]);
 
-    const [textInputPrompt, setTextInputPrompt] = useState("")
-
     return (
-        <>
-            <Grid container spacing={2} sx={{height: '100vh', margin: 0}}>
-                <Grid size={3}>
-                    <ChatList/>
-                </Grid>
-                <Grid size={6} sx={{maxHeight: '100vh'}}>
-                    <Stack direction="column" justifyContent="space-between" sx={{height: "100%"}} spacing={2}>
-                        <ScrollableFeed>
-                            {messages.filter(({role}) => role === 'assistant' || role === 'user').map((message: Message, i: number) => (
-                                <Stack key={i} direction="row"
-                                       justifyContent={message.role === 'assistant' ? 'flex-start' : 'flex-end'}
-                                       sx={{margin: 2}}>
-                                    <Box sx={{
-                                        maxWidth: '70%',
-                                        borderRadius: 4,
-                                        padding: 2,
-                                        border: 2,
-                                        borderColor: 'darkgrey',
-                                        bgcolor: 'background.paper'
-                                    }}>
-                                        <Markdown remarkPlugins={[remarkGfm]}>
-                                            {message.content}
-                                        </Markdown>
-                                    </Box>
-                                </Stack>
-                            ))}
-                            {(inProgressUserMessage.undeterminedWords.length > 0 || inProgressUserMessage.stableWords.length > 0) && (
-                                <Stack direction="row" justifyContent={'flex-end'} sx={{margin: 2}}>
-                                    <Box sx={{
-                                        maxWidth: '70%',
-                                        borderRadius: 4,
-                                        padding: 2,
-                                        border: 2,
-                                        borderColor: 'darkgrey',
-                                        bgcolor: 'background.paper'
-                                    }}>
-                                        <Markdown remarkPlugins={[remarkGfm]}>
-                                            {renderUserMessage(inProgressUserMessage)}
-                                        </Markdown>
-                                    </Box>
-                                </Stack>
-                            )}
-                            {inProgressAgentMessage.length > 0 && (
-                                <Stack direction="row" justifyContent={'flex-start'} sx={{margin: 2}}>
-                                    <Box sx={{
-                                        maxWidth: '70%',
-                                        borderRadius: 4,
-                                        padding: 2,
-                                        border: 2,
-                                        borderColor: 'darkgrey',
-                                        bgcolor: 'background.paper'
-                                    }}>
-                                        <Markdown remarkPlugins={[remarkGfm]}>
-                                            {inProgressAgentMessage.map(token => token.message.content.replaceAll('\n', '\r\n')).join('')}
-                                        </Markdown>
-                                    </Box>
-                                </Stack>
-                            )}
-                        </ScrollableFeed>
-                        <Stack direction="row" spacing={1} justifyContent="space-between" padding={2}>
-                            <TextField
-                                fullWidth
-                                multiline
-                                variant="outlined"
-                                size="medium"
-                                value={textInputPrompt}
-                                onChange={(e) => setTextInputPrompt(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.keyCode === 13) {
-                                        if (!e.shiftKey) {
-                                            sendJsonMessage({
-                                                type: 'text_prompt',
-                                                prompt: textInputPrompt
-                                            })
-                                            setTextInputPrompt("")
-                                            e.preventDefault()
-                                        }
-                                    }
-                                }}
-                            />
-                            <Button variant="outlined" onClick={() => {
-                                sendJsonMessage({
-                                    type: 'text_prompt',
-                                    prompt: textInputPrompt
-                                })
-                                setTextInputPrompt("")
-                            }}>
-                                Submit
-                            </Button>
-                        </Stack>
-                    </Stack>
-                </Grid>
-                <Grid size={3} sx={{maxHeight: '100vh'}}>
-                    {configuration && <ConfigurationToolbar
-                        config={configuration}
-                        setConfigField={(path, value) => {
-                            sendJsonMessage({
-                                type: 'config_change',
-                                path: path,
-                                value: value
-                            })
-                        }}
-                    />}
-                </Grid>
+        <Grid container spacing={2} sx={{height: '100vh', margin: 0}}>
+            <Grid size={3}>
+                <ChatList/>
             </Grid>
-        </>
+            <Grid size={6} sx={{maxHeight: '100vh'}}>
+                <Stack direction="column" justifyContent="space-between" sx={{height: "100%"}} spacing={2}>
+                    <ScrollableFeed>
+                        {messages.filter(({role}) => role === 'assistant' || role === 'user').map((message: Message, i: number) => (
+                            <MessageBubble msg={message.content} role={message.role} key={i}/>
+                        ))}
+
+                        {(inProgressUserMessage.undeterminedWords.length > 0 || inProgressUserMessage.stableWords.length > 0) && (
+                            <MessageBubble
+                                msg={inProgressAgentMessage.map(token => token.message.content.replaceAll('\n', '\r\n')).join('')}
+                                role={'assistant'}
+                            />
+                        )}
+
+                        {inProgressAgentMessage.length > 0 && (
+                            <MessageBubble msg={renderUserMessage(inProgressUserMessage)} role={'user'}/>
+                        )}
+                    </ScrollableFeed>
+
+                    <Stack direction="row" spacing={1} justifyContent="space-between" padding={2}>
+                        <TextField
+                            fullWidth
+                            multiline
+                            variant="outlined"
+                            size="medium"
+                            value={textInputPrompt}
+                            onChange={(e) => setTextInputPrompt(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.keyCode === 13) {
+                                    if (!e.shiftKey) {
+                                        sendJsonMessage({
+                                            type: 'text_prompt',
+                                            prompt: textInputPrompt
+                                        })
+                                        setTextInputPrompt("")
+                                        e.preventDefault()
+                                    }
+                                }
+                            }}
+                        />
+                        <Button variant="outlined" onClick={() => {
+                            sendJsonMessage({
+                                type: 'text_prompt',
+                                prompt: textInputPrompt
+                            })
+                            setTextInputPrompt("")
+                        }}>
+                            Submit
+                        </Button>
+                    </Stack>
+                </Stack>
+            </Grid>
+            <Grid size={3} sx={{maxHeight: '100vh'}}>
+                {configuration && <ConfigurationToolbar
+                    config={configuration}
+                    setConfigField={(path, value) => {
+                        sendJsonMessage({
+                            type: 'config_change',
+                            path: path,
+                            value: value
+                        })
+                    }}
+                />}
+            </Grid>
+        </Grid>
     )
 }

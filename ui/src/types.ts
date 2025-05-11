@@ -101,3 +101,7 @@ export type Configuration = {
         after_user_speech_confirmation_delay_ms: number
     }
 }
+export type Message = {
+    role: 'user' | 'assistant'
+    content: string
+}
