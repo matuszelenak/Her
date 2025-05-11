@@ -33,17 +33,6 @@ export class Resampler {
         return outputFrames
     }
 
-    async *stream(audioInput: Float32Array) {
-        for (const sample of audioInput) {
-            this.inputBuffer.push(sample)
-
-            while (this.hasEnoughDataForFrame()) {
-                const outputFrame = this.generateOutputFrame()
-                yield outputFrame
-            }
-        }
-    }
-
     private hasEnoughDataForFrame(): boolean {
         return (
             (this.inputBuffer.length * this.options.targetSampleRate) /

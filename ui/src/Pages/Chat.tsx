@@ -1,6 +1,6 @@
 import useWebSocket from "react-use-websocket";
 import Grid from "@mui/material/Grid2";
-import {Box, Button, Stack, TextField, Typography} from "@mui/material";
+import {Box, Button, Stack, TextField} from "@mui/material";
 import {useEffect, useState} from "react";
 import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
@@ -18,7 +18,7 @@ import {usePlayer} from "../hooks/useAudioPlayer.ts";
 
 type Message = {
     role: 'user' | 'assistant' | 'tool'
-    message: string[]
+    content: string
 }
 
 
@@ -56,10 +56,7 @@ export const Chat = () => {
                 stableWords: [],
                 undeterminedWords: []
             })
-            setMessages(data.messages.map((msg: any) => ({
-                ...msg,
-                message: [msg.content]
-            })))
+            setMessages(data.messages as Message[])
             return []
         }),
         enabled: !!chatId
@@ -85,7 +82,7 @@ export const Chat = () => {
             ...previousMessages,
             {
                 role: 'user',
-                message: [renderUserMessage(inProgressUserMessage)]
+                content: renderUserMessage(inProgressUserMessage)
             }
         ])
         setInProgressUserMessage({
@@ -99,7 +96,7 @@ export const Chat = () => {
                 ...previousMessages,
                 {
                     role: 'assistant',
-                    message: inProgressAgentMessage.map(token => token.message.content.replaceAll('\n', '\r\n'))
+                    content: inProgressAgentMessage.map(token => token.message.content.replaceAll('\n', '\r\n')).join('')
                 }
             ]
         )
@@ -128,7 +125,7 @@ export const Chat = () => {
                             commitUserMessage()
                         }
                         if (message.token != null) {
-                            setInProgressAgentMessage((prevState) => ([...prevState, message.token]))
+                            setInProgressAgentMessage((prevState) => ([...prevState, message.token!]))
                         } else {
                             commitAgentMessage()
                         }
@@ -163,7 +160,7 @@ export const Chat = () => {
                             ...previousMessages,
                             {
                                 role: 'user',
-                                message: [message.text]
+                                content: message.text
                             }
                         ])
                         break;
@@ -246,7 +243,7 @@ export const Chat = () => {
                                         bgcolor: 'background.paper'
                                     }}>
                                         <Markdown remarkPlugins={[remarkGfm]}>
-                                            {message.message.join('')}
+                                            {message.content}
                                         </Markdown>
                                     </Box>
                                 </Stack>

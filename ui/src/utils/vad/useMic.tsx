@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from "react"
 import {DEFAULT_MODEL, getDefaultRealTimeVADOptions, MicVAD, RealTimeVADOptions} from "./real-time-vad.ts";
+import {SpeechProbabilities} from "./models";
 
 
 interface ReactOptions {
@@ -43,8 +44,8 @@ function useOptions(
     return [reactOptions, vadOptions]
 }
 
-function useEventCallback<T extends (...args: any[]) => any>(fn: T): T {
-    const ref: any = React.useRef(fn)
+function useEventCallback<T extends (...args: unknown[]) => unknown>(fn: T): T {
+    const ref = React.useRef(fn)
 
     // we copy a ref to the callback scoped to the current state/props on each render
     useIsomorphicLayoutEffect(() => {
@@ -52,7 +53,7 @@ function useEventCallback<T extends (...args: any[]) => any>(fn: T): T {
     })
 
     return React.useCallback(
-        (...args: any[]) => ref.current.apply(void 0, args),
+        (...args: unknown[]) => ref.current.apply(void 0, args),
         []
     ) as T
 }
@@ -65,14 +66,18 @@ export function useMicVAD(options: Partial<ReactRealTimeVADOptions>) {
     const [listening, setListening] = useState(false)
     const [vad, setVAD] = useState<MicVAD | null>(null)
 
+    // @ts-expect-error wtf
     const userOnFrameProcessed = useEventCallback(vadOptions.onFrameProcessed)
-    vadOptions.onFrameProcessed = useEventCallback((probs, frame) => {
+    // @ts-expect-error wtf
+    vadOptions.onFrameProcessed = useEventCallback((probs: SpeechProbabilities, frame) => {
         const isSpeaking = probs.isSpeech > reactOptions.userSpeakingThreshold
         updateUserSpeaking(isSpeaking)
         userOnFrameProcessed(probs, frame)
     })
     const { onSpeechFrames, onSpeechEnd } = vadOptions
+    // @ts-expect-error wtf
     const _onSpeechFrames = useEventCallback(onSpeechFrames)
+    // @ts-expect-error wtf
     const _onSpeechEnd = useEventCallback(onSpeechEnd)
     vadOptions.onSpeechFrames = _onSpeechFrames
     vadOptions.onSpeechEnd = _onSpeechEnd

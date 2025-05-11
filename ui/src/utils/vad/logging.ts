@@ -2,11 +2,11 @@ export const LOG_PREFIX = "[VAD]"
 
 const levels = ["error", "debug", "warn"] as const
 type Level = (typeof levels)[number]
-type LogFn = (...args: any) => void
+type LogFn = (...args: unknown[]) => void
 type Logger = Record<Level, LogFn>
 
 function getLog(level: Level): LogFn {
-    return (...args: any) => {
+    return (...args: unknown[]) => {
         console[level](LOG_PREFIX, ...args)
     }
 }

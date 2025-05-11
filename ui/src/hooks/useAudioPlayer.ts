@@ -83,8 +83,6 @@ export const usePlayer = () => {
     }
 
     useEffect(() => {
-        console.log(playerState)
-        console.log(queue)
         if (playerState == "shouldPlay") {
             const toPlay = popFromQueue()
             if (toPlay) {

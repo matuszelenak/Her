@@ -3,11 +3,7 @@ import { DependencyStatus } from "../types.ts";
 import { useEffect, useState } from "react";
 
 export const useServiceHealth = () => {
-    const [status, setStatus] = useState<DependencyStatus>({
-        tts: undefined,
-        stt: undefined,
-        llm: []
-    })
+    const [status, setStatus] = useState<DependencyStatus>({})
 
     const {sendJsonMessage} = useWebSocket(
         `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws/health`,
@@ -30,7 +26,7 @@ export const useServiceHealth = () => {
         }, 5000);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [sendJsonMessage]);
 
     return status
 }

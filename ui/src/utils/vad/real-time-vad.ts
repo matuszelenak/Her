@@ -92,7 +92,7 @@ export const getDefaultRealTimeVADOptions: (
             : defaultLegacyFrameProcessorOptions
     return {
         ...frameProcessorOptions,
-        onFrameProcessed: (probabilities, frame) => {
+        onFrameProcessed: () => {
         },
         onSpeechEnd: () => {
             console.log("Detected speech end")
@@ -275,7 +275,7 @@ export class AudioNodeVAD {
                 ) => {
                     switch (ev.data?.message) {
                         case Message.AudioFrame: {
-                            let buffer: ArrayBuffer = ev.data.data
+                            let buffer = ev.data.data
                             if (!(buffer instanceof ArrayBuffer)) {
                                 buffer = new ArrayBuffer(ev.data.data.byteLength)
                                 new Uint8Array(buffer).set(new Uint8Array(ev.data.data))

@@ -10,7 +10,7 @@ export type ChatsResponse = {
 }[]
 
 export const ChatList = () => {
-    const queryCient = useQueryClient()
+    const queryClient = useQueryClient()
     const navigate = useNavigate()
     const {chatId} = useParams<string>();
 
@@ -30,7 +30,7 @@ export const ChatList = () => {
             method: "delete"
         }),
         onSuccess: async ({data}) => {
-            await queryCient.invalidateQueries({queryKey: ['chat_list']})
+            await queryClient.invalidateQueries({queryKey: ['chat_list']})
             if (data.id == chatId) {
                 navigate('/')
             }

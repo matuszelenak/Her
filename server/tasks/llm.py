@@ -23,8 +23,8 @@ TokenTuple = Tuple[Literal['token'], Choice]
 SentenceTuple = Tuple[Literal['sentence'], str]
 
 
-open_api_url = os.environ.get('OPENAI_API_URL')
-client = AsyncClient(base_url=open_api_url, api_key='whatever')
+assistant_api_url = os.environ.get('ASSISTANT_API_URL')
+client = AsyncClient(base_url=assistant_api_url, api_key='whatever')
 
 
 async def llm_query_task(session: Session, prompt: str):

@@ -1,3 +1,4 @@
+// @ts-expect-error wtf
 import * as ort from "onnxruntime-web"
 import { log } from "../logging"
 import {Model, ModelFactory, ModelFetcher, SpeechProbabilities} from "./common"
@@ -22,7 +23,6 @@ export class SileroV5 implements Model{
         log.debug("Loading VAD...")
         const modelArrayBuffer = await modelFetcher()
         const _session = await ortInstance.InferenceSession.create(modelArrayBuffer)
-        // @ts-expect-error wtf
         const _sr = new ortInstance.Tensor("int64", [16000n])
         const _state = getNewState(ortInstance)
         log.debug("...finished loading VAD")
@@ -49,7 +49,6 @@ export class SileroV5 implements Model{
 
         // eslint-disable-next-line no-unsafe-optional-chaining
         const [isSpeech] = out["output"]?.data
-        // @ts-expect-error wtf
         const notSpeech = 1 - isSpeech
         return { notSpeech, isSpeech: (isSpeech as number) }
     }
