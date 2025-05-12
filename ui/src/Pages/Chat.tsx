@@ -231,14 +231,14 @@ export const Chat = () => {
                             <MessageBubble msg={message.content} role={message.role} key={i}/>
                         ))}
 
-                        {(inProgressUserMessage.undeterminedWords.length > 0 || inProgressUserMessage.stableWords.length > 0) && (
+                        {inProgressAgentMessage.length > 0 && (
                             <MessageBubble
                                 msg={inProgressAgentMessage.map(token => token.message.content.replaceAll('\n', '\r\n')).join('')}
                                 role={'assistant'}
                             />
                         )}
 
-                        {inProgressAgentMessage.length > 0 && (
+                        {(inProgressUserMessage.undeterminedWords.length > 0 || inProgressUserMessage.stableWords.length > 0) && (
                             <MessageBubble msg={renderUserMessage(inProgressUserMessage)} role={'user'}/>
                         )}
                     </ScrollableFeed>
