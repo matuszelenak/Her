@@ -1,6 +1,7 @@
-from typing import Literal
+from typing import Literal, AsyncGenerator
 
 import httpx
+import numpy as np
 from pydantic import BaseModel
 
 from providers.base import TextToSpeechProvider
@@ -80,6 +81,8 @@ class KokoroConfig(BaseModel):
 
 
 class KokoroAudioProvider(TextToSpeechProvider):
+    SAMPLE_RATE = 24000
+
     def __init__(self, base_url):
         self.base_url = base_url
 
@@ -99,10 +102,28 @@ class KokoroAudioProvider(TextToSpeechProvider):
                     }
             ) as resp:
                 chunk: bytes
-                async for chunk in resp.aiter_bytes(chunk_size=512):
+                async for chunk in resp.aiter_bytes(chunk_size=4096):
                     content.extend(chunk)
 
         return content
+
+
+    async def generate_audio_stream(self, text: str, voice: str) -> AsyncGenerator[np.ndarray, None]:
+        async with httpx.AsyncClient() as client:
+            async with client.stream(
+                'POST',
+                f'{self.base_url}/v1/audio/speech',
+                json={
+                    "model": "kokoro",
+                    "input": text,
+                    "voice": voice,
+                    "response_format": "wav",
+                    "stream": True,
+                }
+            ) as resp:
+                chunk: bytes
+                async for chunk in resp.aiter_bytes(chunk_size=4096):
+                    yield np.frombuffer(chunk, dtype=np.int16) / 32768.0
 
 
     async def get_voices(self):

@@ -31,6 +31,11 @@ class WsReceiveConfigChange(BaseModel):
     value: Any
 
 
+class WsReceiveFlowControl(BaseModel):
+    type: Literal['flow_control']
+    command: Literal['pause_sending', 'resume_sending']
+
+
 class WsReceiveEvent(BaseModel):
     event: Union[
         WsReceiveSamplesEvent,
@@ -38,5 +43,6 @@ class WsReceiveEvent(BaseModel):
         WsReceiveSpeechPromptEvent,
         WsReceiveTextPrompt,
         WsReceiveAgentSpeechEnd,
-        WsReceiveConfigChange
+        WsReceiveConfigChange,
+        WsReceiveFlowControl
     ] = Field(discriminator='type')

@@ -4,7 +4,7 @@ import {Box, Button, Stack, TextField} from "@mui/material";
 import {useEffect, useState} from "react";
 import Markdown from "react-markdown";
 import ScrollableFeed from "react-scrollable-feed";
-import {arrayBufferToBase64} from "../utils/encoding.ts";
+import {arrayBufferToBase64, base64ToArrayBuffer} from "../utils/encoding.ts";
 import {useMicVAD} from "../utils/vad/useMic.tsx";
 import {Configuration, Message, Token, WebSocketEvent, WebsocketEventType} from "../types.ts";
 import {ChatList} from "../Components/ChatList.tsx";
@@ -13,7 +13,6 @@ import {axiosDefault} from "../api.ts";
 import {ConfigurationToolbar} from "../Components/ConfigurationToolbar.tsx";
 import remarkGfm from "remark-gfm";
 import {useParams} from "react-router-dom";
-import {usePlayer} from "../hooks/useAudioPlayer.ts";
 
 
 type LiveTranscribedText = {
@@ -61,8 +60,8 @@ export const Chat = () => {
     })
     const [inProgressAgentMessage, setInProgressAgentMessage] = useState<Array<Token>>([])
     const [textInputPrompt, setTextInputPrompt] = useState("")
+    const [workletNode, setWorkletNode] = useState<AudioWorkletNode | null>(null);
 
-    const {queueAudio, finishedId, stop: audioPlayerStop} = usePlayer()
     useQuery({
         queryKey: ['chat', chatId],
         queryFn: async () => axiosDefault({
@@ -133,7 +132,7 @@ export const Chat = () => {
                         break;
 
                     case WebsocketEventType.USER_TRANSCRIPTION:
-                        audioPlayerStop()
+                        // audioPlayerStop()
                         if (message.segment.complete) {
                             setInProgressUserMessage((prev) => ({
                                 stableWords: [...prev.stableWords, ...message.segment.words],
@@ -147,14 +146,6 @@ export const Chat = () => {
                         }
                         break;
 
-                    case WebsocketEventType.SPEECH_FILE:
-                        await queueAudio(message)
-                        break;
-
-                    case WebsocketEventType.ASSISTANT_SPEECH_START:
-                        audioPlayerStop()
-                        break;
-
                     case WebsocketEventType.MANUAL_PROMPT:
                         setMessages((previousMessages: Message[]) => [
                             ...previousMessages,
@@ -164,6 +155,11 @@ export const Chat = () => {
                             }
                         ])
                         break;
+
+                    case WebsocketEventType.SPEECH_SAMPLES:
+                        if (workletNode) {
+                            workletNode.port.postMessage(new Float32Array(base64ToArrayBuffer(message.samples)))
+                        }
                 }
             },
             shouldReconnect: () => true,
@@ -173,14 +169,6 @@ export const Chat = () => {
         },
         !!chatId
     );
-
-    useEffect(() => {
-        if (finishedId) {
-            sendJsonMessage({
-                type: 'finished_speaking'
-            })
-        }
-    }, [finishedId, sendJsonMessage]);
 
     const [notifySpeechEnd, setNotifySpeechEnd] = useState<NodeJS.Timeout | null>(null)
 
@@ -208,6 +196,32 @@ export const Chat = () => {
             }, configuration?.app?.after_user_speech_confirmation_delay_ms || 0))
         }
     })
+
+    useEffect(() => {
+        const initAudioWorklet = async () => {
+            const audioContext = new AudioContext()
+            await audioContext.audioWorklet.addModule('/audioPlayer.js');
+
+            const node = new AudioWorkletNode(audioContext, 'audio-player')
+            node.connect(audioContext.destination)
+
+            node.port.onmessage = (event) => {
+                if (event.data?.type === 'control') {
+                    // Forward control command to backend
+                    sendJsonMessage({
+                        type: 'flow_control',
+                        command: event.data.command
+                    })
+                } else {
+                    // Handle other potential messages from worklet if needed
+                    console.log('[React] Received message from worklet:', event.data);
+                }
+            };
+            setWorkletNode(node)
+        }
+
+        initAudioWorklet()
+    }, [sendJsonMessage]);
 
     useEffect(() => {
         if (configuration) {

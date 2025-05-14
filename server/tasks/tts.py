@@ -1,58 +1,65 @@
 import asyncio
-from pathlib import Path
-from uuid import uuid4
+import base64
 
-from models.sent_events import WsSendSpeechEvent, WsSendAssistantSpeechStartEvent
+from models.sent_events import WsSendSpeechSamplesEvent
+from models.session import Session
 from providers import providers
 from providers.base import TextToSpeechProvider
 from utils.log import get_logger
-from utils.perf import ElapsedTime
-from models.session import Session
+from utils.sound import resample_chunk
 
 logger = get_logger(__name__)
 
 
-async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
-    tts_provider: TextToSpeechProvider = providers['tts'][session.chat.config.tts.provider]
+async def samples_sender_task(session: Session, outgoing_samples_queue: asyncio.Queue):
     try:
-        if session.chat.config.app.voice_output_enabled:
-            await session.send_event(WsSendAssistantSpeechStartEvent())
+        while True:
+            samples = await outgoing_samples_queue.get()
+            if samples is None:
+                logger.debug('Sent all the samples, exiting...')
+                break
 
-        order = 0
+            async with session.speech_sending_lock:
+                resampled = resample_chunk(samples, 24000, 48000)
+
+                logger.debug(f'Sent {len(samples)} samples')
+
+                await session.send_event(
+                    WsSendSpeechSamplesEvent(
+                        samples=base64.b64encode(resampled.tobytes()).decode('ascii')
+                    )
+                )
+    except Exception as e:
+        logger.error(e)
+        logger.debug(str(e), exc_info=True, stack_info=True)
+
+
+async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
+    tts_provider: TextToSpeechProvider = providers['tts']['orpheus']
+
+    outgoing_samples_queue = asyncio.Queue()
+    sender_task = asyncio.create_task(samples_sender_task(session, outgoing_samples_queue))
+
+    try:
         while True:
             sentence = await llm_response_queue.get()
             if sentence is None:
+                await outgoing_samples_queue.put(None)
                 break
 
             sentence = sentence.strip()
             if not sentence:
                 continue
+            #
+            # if not session.chat.config.app.voice_output_enabled:
+            #     continue
 
-            if not session.chat.config.app.voice_output_enabled:
-                continue
+            async for samples in tts_provider.generate_audio_stream(sentence, 'bf_emma'):
+                await outgoing_samples_queue.put(samples)
 
-            with ElapsedTime(f'TTS for "{sentence}"'):
-                audio_bytearray = await tts_provider.generate_audio(sentence, session.chat.config.tts.voice)
-
-            folder_path = Path(f'/tts_output/{session.chat.id}/{len(session.chat)}')
-            folder_path.mkdir(parents=True, exist_ok=True)
-            file_path = folder_path / f'{order}_{uuid4()}.mp3'
-
-            with open(file_path, 'wb') as f:
-                f.write(bytes(audio_bytearray))
-
-            await session.send_event(
-                WsSendSpeechEvent(
-                    filename=str(file_path.relative_to('/tts_output')),
-                    order=order,
-                    text=sentence
-                )
-            )
-
-            order += 1
     except asyncio.CancelledError:
+        sender_task.cancel()
         logger.debug('TTS task cancelled')
-
     except Exception as e:
         logger.error('Exception in TTS task', exc_info=True)
         logger.error(str(e))

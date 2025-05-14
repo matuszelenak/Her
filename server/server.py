@@ -14,15 +14,16 @@ from db.models import Chat
 from db.session import get_db
 from endpoints.audio import audio_router
 from endpoints.chat import chat_router
+from models.configuration import get_previous_or_default_config
 from models.received_events import WsReceiveSamplesEvent, WsReceiveEvent, WsReceiveSpeechEndEvent, \
-    WsReceiveTextPrompt, WsReceiveSpeechPromptEvent, WsReceiveAgentSpeechEnd, WsReceiveConfigChange
+    WsReceiveTextPrompt, WsReceiveSpeechPromptEvent, WsReceiveAgentSpeechEnd, WsReceiveConfigChange, \
+    WsReceiveFlowControl
 from models.sent_events import WsManualPromptEvent, WsSendConfigurationEvent
+from models.session import Session
 from providers import providers
 from tasks.coordination import trigger_agent_response
 from tasks.stt import stt_task
-from models.configuration import get_previous_or_default_config
 from utils.log import get_logger
-from models.session import Session
 from utils.validation import should_agent_respond
 
 app = FastAPI()
@@ -133,6 +134,14 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
                 await session.send_event(
                     WsSendConfigurationEvent(configuration=session.chat.config)
                 )
+
+            elif isinstance(event, WsReceiveFlowControl):
+                if event.command == 'pause_sending':
+                    logger.debug('Pausing sending')
+                    session.speech_sending_lock.acquire()
+                elif event.command == 'resume_sending':
+                    logger.debug('Resuming sending')
+                    session.speech_sending_lock.release()
 
 
     except starlette.websockets.WebSocketDisconnect:

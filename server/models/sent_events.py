@@ -32,6 +32,11 @@ class WsSendSpeechEvent(BaseModel):
     type: Literal['speech_id'] = 'speech_id'
 
 
+class WsSendSpeechSamplesEvent(BaseModel):
+    samples: str
+    type: Literal['speech_samples'] = 'speech_samples'
+
+
 class WsSendConfigurationEvent(BaseModel):
     configuration: SessionConfig
     type: Literal['configuration'] = 'configuration'
@@ -45,5 +50,6 @@ WsSendEvent = Union[
     WsSendTranscriptionEvent,
     WsSendAssistantSpeechStartEvent,
     WsSendSpeechEvent,
+    WsSendSpeechSamplesEvent,
     WsSendConfigurationEvent
 ]

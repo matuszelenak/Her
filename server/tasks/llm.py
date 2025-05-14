@@ -4,18 +4,16 @@ import re
 from datetime import datetime
 from typing import Tuple, Literal, Union, AsyncGenerator, Iterable
 
-from bs4 import BeautifulSoup
-from markdown import markdown
 from openai import AsyncClient
 from openai.types.chat import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_chunk import Choice
 
 from models.base import Token, Message
 from models.sent_events import WsSendTokenEvent
+from models.session import Session
 from tasks.tts import tts_task
 from utils.log import get_logger
 from utils.sanitization import clean_text_for_tts
-from models.session import Session
 
 logger = get_logger(__name__)
 
@@ -35,7 +33,9 @@ async def llm_query_task(session: Session, prompt: str):
         })
 
         llm_response_queue = asyncio.Queue()
-        session.tts_task = asyncio.create_task(tts_task(session, llm_response_queue))
+
+        if session.chat.config.app.voice_output_enabled:
+            session.tts_task = asyncio.create_task(tts_task(session, llm_response_queue))
 
         complete_response = ""
 
@@ -106,15 +106,3 @@ async def generate_llm_response(messages: Iterable[ChatCompletionMessageParam]) 
 
     if sentence_buffer:
         yield 'sentence', sentence_buffer
-
-
-def strip_markdown(sentence: str):
-    html = markdown(sentence)
-
-    html = re.sub(r'<pre>(.*?)</pre>', ' ', html)
-    html = re.sub(r'<code>(.*?)</code >', ' ', html)
-
-    soup = BeautifulSoup(html, "html.parser")
-    text = ''.join(soup.findAll(text=True))
-
-    return text

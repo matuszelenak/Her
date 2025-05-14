@@ -5,8 +5,8 @@
     "language": "en"
   },
   "tts": {
-    "provider": "kokoro",
-    "voice": "bf_emma"
+    "provider": "orpheus",
+    "voice": "leah"
   },
   "app": {
     "prevalidate_prompt": true,
