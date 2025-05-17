@@ -29,6 +29,7 @@ async def samples_sender_task(session: Session, outgoing_samples_queue: asyncio.
                         samples=base64.b64encode(resampled.tobytes()).decode('ascii')
                     )
                 )
+                await asyncio.sleep(0.02)
     except Exception as e:
         logger.error(e)
         logger.debug(str(e), exc_info=True, stack_info=True)
