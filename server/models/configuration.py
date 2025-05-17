@@ -17,7 +17,7 @@ class STTConfig(BaseModel):
 class AppConfig(BaseModel):
     voice_input_enabled: bool = True
     voice_output_enabled: bool = True
-    after_user_speech_confirmation_delay_ms: int = 1000
+    after_user_speech_confirmation_delay_ms: int = 500
     prevalidate_prompt: bool = False
     inactivity_timeout_ms: int | None = None
 

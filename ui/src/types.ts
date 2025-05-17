@@ -18,7 +18,8 @@ export enum WebsocketEventType {
     ASSISTANT_SPEECH_START = 'assistant_speech_start',
     SPEECH_FILE = 'speech_id',
     MANUAL_PROMPT = 'manual_prompt',
-    CONFIGURATION = 'configuration'
+    CONFIGURATION = 'configuration',
+    SPEECH_SAMPLES = 'speech_samples'
 }
 
 
@@ -62,6 +63,11 @@ export interface ReceivedConfigEvent {
     configuration: Configuration
 }
 
+export interface SpeechSamplesEvent {
+    type: WebsocketEventType.SPEECH_SAMPLES
+    samples: string
+}
+
 export type WebSocketEvent =
     TokenEvent
     | STTOutputEvent
@@ -70,6 +76,7 @@ export type WebSocketEvent =
     | SpeechStartEvent
     | ManualPromptEvent
     | ReceivedConfigEvent
+    | SpeechSamplesEvent
 
 
 export type STTConfiguration = {

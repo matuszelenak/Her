@@ -29,6 +29,8 @@ class Session:
 
     last_interaction: Optional[datetime.datetime] = None
 
+    speech_sending_lock = asyncio.Lock()
+
     async def send_event(self, event: WsSendEvent):
         return await self.client_socket.send_json(event.model_dump())
 
@@ -37,6 +39,8 @@ class Session:
             self.stt_task.cancel()
         if self.tts_task:
             self.tts_task.cancel()
+        if self.llm_task:
+            self.llm_task.cancel()
 
     async def append_message(self, message):
         if self.chat.id is None:

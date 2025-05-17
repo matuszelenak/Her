@@ -32,6 +32,7 @@ export default defineConfig({
         },
         port: 5000,
         open: false,
+        allowedHosts: ['ui'],
     },
     worker: {
         format: 'es'

@@ -1,3 +1,6 @@
+from typing import AsyncGenerator
+
+import numpy as np
 from pydantic import BaseModel
 
 
@@ -16,4 +19,7 @@ class TextToSpeechProvider(BaseProvider):
         raise NotImplementedError
 
     async def generate_audio(self, text: str, voice: str) -> bytearray:
+        raise NotImplementedError
+
+    async def generate_audio_stream(self, text: str, voice: str) -> AsyncGenerator[np.ndarray, None]:
         raise NotImplementedError
