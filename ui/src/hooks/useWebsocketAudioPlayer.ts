@@ -1,10 +1,7 @@
-import {useEffect, useState} from 'react';
-import useWebSocket from "react-use-websocket";
+import {useChatWebSocket} from "./WebSocketProvider.tsx";
+import {SpeechSamplesEvent, WebsocketEventType} from "../types.ts";
+import {useEffect, useState} from "react";
 import {base64ToArrayBuffer} from "../utils/encoding.ts";
-
-type SamplesEvent = {
-    samples: string
-}
 
 const CTL_WRITE_IDX = 0;
 const CTL_READ_IDX = 1;
@@ -14,54 +11,50 @@ const CONTROL_SAB_SIZE_BYTES = 4 * Int32Array.BYTES_PER_ELEMENT;
 
 const MAX_AUDIO_BUFFER_SAMPLES = 65536 * 4;
 
-
-export const WebSocketAudioPlayer = () => {
+export function useWebsocketAudioPlayer() {
     const [workletNode, setWorkletNode] = useState<AudioWorkletNode | null>(null);
     const [samplesArray, setSamplesArray] = useState<Float32Array | null>(null);
     const [controlArray, setControlArray] = useState<Int32Array | null>(null);
     const [workletReady, setWorkletReady] = useState<boolean>(false);
 
-    const {sendJsonMessage} = useWebSocket(
-        `${window.location.protocol == "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws/audio`,
-        {
-            onMessage: async (event: WebSocketEventMap['message']) => {
-                if (workletNode === null || controlArray === null || samplesArray === null) return
+    const {sendMessage: sendJsonMessage, subscribe} = useChatWebSocket()
 
-                const message = JSON.parse(event.data) as SamplesEvent
-                const incomingSamples = new Float32Array(base64ToArrayBuffer(message.samples))
+    useEffect(() => {
+        // @ts-expect-error wtf
+        const unsubscribe = subscribe(WebsocketEventType.SPEECH_SAMPLES, (message: SpeechSamplesEvent) => {
+            if (workletNode === null || controlArray === null || samplesArray === null || !workletReady) return
 
-                const numIncomingSamples = incomingSamples.length;
+            const incomingSamples = new Float32Array(base64ToArrayBuffer(message.samples))
 
-                if (numIncomingSamples === 0) return;
+            const numIncomingSamples = incomingSamples.length;
 
-                const samplesAvailable = Atomics.load(controlArray, CTL_SAMPLES_AVAIL_IDX);
-                if (samplesAvailable + numIncomingSamples > MAX_AUDIO_BUFFER_SAMPLES) {
-                    console.warn(`[React] SAB buffer full! Dropping ${numIncomingSamples} samples. Available: ${samplesAvailable}`);
-                    return;
-                }
+            if (numIncomingSamples === 0) return;
 
-                let writePointer = Atomics.load(controlArray, CTL_WRITE_IDX);
-                const spaceToEnd = MAX_AUDIO_BUFFER_SAMPLES - writePointer;
+            const samplesAvailable = Atomics.load(controlArray, CTL_SAMPLES_AVAIL_IDX);
+            if (samplesAvailable + numIncomingSamples > MAX_AUDIO_BUFFER_SAMPLES) {
+                console.warn(`[React] SAB buffer full! Dropping ${numIncomingSamples} samples. Available: ${samplesAvailable}`);
+                return;
+            }
 
-                if (numIncomingSamples <= spaceToEnd) {
-                    samplesArray.set(incomingSamples, writePointer);
-                    writePointer += numIncomingSamples;
-                } else {
-                    samplesArray.set(incomingSamples.subarray(0, spaceToEnd), writePointer);
-                    samplesArray.set(incomingSamples.subarray(spaceToEnd), 0);
-                    writePointer = numIncomingSamples - spaceToEnd;
-                }
-                if (writePointer === MAX_AUDIO_BUFFER_SAMPLES) writePointer = 0;
+            let writePointer = Atomics.load(controlArray, CTL_WRITE_IDX);
+            const spaceToEnd = MAX_AUDIO_BUFFER_SAMPLES - writePointer;
 
-                Atomics.store(controlArray, CTL_WRITE_IDX, writePointer);
-                Atomics.add(controlArray, CTL_SAMPLES_AVAIL_IDX, numIncomingSamples); // Atomically add
-            },
-            shouldReconnect: () => true,
-            reconnectAttempts: 1000,
-            reconnectInterval: 2000,
-        },
-        workletReady
-    )
+            if (numIncomingSamples <= spaceToEnd) {
+                samplesArray.set(incomingSamples, writePointer);
+                writePointer += numIncomingSamples;
+            } else {
+                samplesArray.set(incomingSamples.subarray(0, spaceToEnd), writePointer);
+                samplesArray.set(incomingSamples.subarray(spaceToEnd), 0);
+                writePointer = numIncomingSamples - spaceToEnd;
+            }
+            if (writePointer === MAX_AUDIO_BUFFER_SAMPLES) writePointer = 0;
+
+            Atomics.store(controlArray, CTL_WRITE_IDX, writePointer);
+            Atomics.add(controlArray, CTL_SAMPLES_AVAIL_IDX, numIncomingSamples); // Atomically add
+            }
+        )
+        return () => unsubscribe()
+    }, [subscribe, workletNode, controlArray, samplesArray, workletReady]);
 
     useEffect(() => {
         const initAudioWorklet = async () => {
@@ -118,9 +111,5 @@ export const WebSocketAudioPlayer = () => {
         initAudioWorklet()
     }, [sendJsonMessage]);
 
-    return (
-        <div>
-            <h2>WebSocket Audio Player</h2>
-        </div>
-    );
-};
+    return {}
+}

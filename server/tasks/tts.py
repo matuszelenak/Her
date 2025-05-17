@@ -35,7 +35,8 @@ async def samples_sender_task(session: Session, outgoing_samples_queue: asyncio.
 
 
 async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
-    tts_provider: TextToSpeechProvider = providers['tts']['orpheus']
+    tts_provider: TextToSpeechProvider = providers['tts'][session.chat.config.tts.provider]
+    voice = session.chat.config.tts.voice
 
     outgoing_samples_queue = asyncio.Queue()
     sender_task = asyncio.create_task(samples_sender_task(session, outgoing_samples_queue))
@@ -50,11 +51,8 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
             sentence = sentence.strip()
             if not sentence:
                 continue
-            #
-            # if not session.chat.config.app.voice_output_enabled:
-            #     continue
 
-            async for samples in tts_provider.generate_audio_stream(sentence, 'bf_emma'):
+            async for samples in tts_provider.generate_audio_stream(sentence, voice):
                 await outgoing_samples_queue.put(samples)
 
     except asyncio.CancelledError:
