@@ -6,7 +6,7 @@ class SharedAudioProcessor extends AudioWorkletProcessor {
     HIGH_WATERMARK_SAMPLES = 0
     LOW_WATERMARK_SAMPLES = 0
 
-    valid = false;
+    valid: boolean = false;
     isSignalingPause = false
 
     audioSAB = new SharedArrayBuffer(16)
@@ -16,7 +16,7 @@ class SharedAudioProcessor extends AudioWorkletProcessor {
     maxAudioBufferSamples = 0
 
 
-    constructor(options) {
+    constructor(options: AudioWorkletNodeOptions) {
         super();
 
         if (!options.processorOptions || !options.processorOptions.audioSAB || !options.processorOptions.controlSAB) {
@@ -43,14 +43,14 @@ class SharedAudioProcessor extends AudioWorkletProcessor {
         this.port.postMessage({ type: 'worklet_ready' });
     }
 
-    sendControlMessage(command) {
+    sendControlMessage(command: 'pause_sending' | 'resume_sending') {
         this.port.postMessage({
             type: 'control',
             command: command
         });
     }
 
-    process(inputs, outputs, parameters) {
+    process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>) {
         if (!this.valid) return true;
 
         const channels = outputs[0]

@@ -48,7 +48,7 @@ class OrpheusAudioProvider(TextToSpeechProvider):
                 timeout=30000
             ) as resp:
                 chunk: bytes
-                async for chunk in resp.aiter_bytes(chunk_size=8000): # 4000 samples
+                async for chunk in resp.aiter_bytes(chunk_size=4000): # 2000 samples
                     yield np.frombuffer(chunk, dtype=np.int16) / 32768.0
 
     async def get_voices(self):

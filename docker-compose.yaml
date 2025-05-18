@@ -76,6 +76,25 @@ services:
           ignore:
             - node_modules/
 
+  ui-svelte:
+    container_name: ai-girlfriend-ui-svelte
+    build:
+      context: svelte-ui
+      dockerfile: dev.Dockerfile
+    depends_on:
+      - server
+    ports:
+      - "5001:5000"
+    develop:
+      watch:
+        - action: rebuild
+          path: ./ui/package.json
+        - action: sync
+          path: ./svelte-ui
+          target: /app
+          ignore:
+            - node_modules/
+
 
 volumes:
   postgres-data:

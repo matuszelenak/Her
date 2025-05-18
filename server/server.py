@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from uuid import uuid4, UUID
 
+import numpy as np
 import pydantic
 import starlette
 from fastapi import FastAPI, WebSocket, Depends
@@ -39,23 +40,30 @@ app.include_router(audio_router)
 app.mount('/audio', StaticFiles(directory='/tts_output'), name='tts-output')
 
 
-async def samples_sender_task(socket, lock):
+async def samples_sender_task(socket: WebSocket, lock: asyncio.Lock):
     try:
         sample_rate, audio_data = wav.read('utils/please_streamed.wav')
         total_samples = audio_data.shape[0]
 
-        for prefix_len in range(0, total_samples, 8192):
-            samples = audio_data[prefix_len:prefix_len + 8192] / 32768.0
+        chunk_size = 4000
+        for prefix_len in range(0, total_samples, chunk_size):
+            samples: np.ndarray = audio_data[prefix_len:prefix_len + chunk_size]
+            # samples = audio_data[prefix_len:prefix_len + chunk_size]
             if samples is None:
                 logger.debug('Sent all the samples, exiting...')
                 break
 
             async with lock:
-                resampled = resample_chunk(samples, 24000, 48000)
-                await socket.send_json(WsSendSpeechSamplesEvent(
-                    samples=base64.b64encode(resampled.tobytes()).decode('ascii')
-                ).model_dump())
-                await asyncio.sleep(1 / 5)
+                # resampled = resample_chunk(samples, 48000, 48000
+                resampled = [0.0 for _ in range(len(samples) * 2)]
+                for i in range(len(samples)):
+                    resampled[i * 2] = samples[i]  / 32768.0
+                    resampled[i * 2 + 1] = samples[i] / 32768.0
+                await socket.send_bytes(np.array(resampled, dtype=np.float32).tobytes())
+                # await socket.send_json(WsSendSpeechSamplesEvent(
+                #     samples=base64.b64encode(resampled.tobytes()).decode('ascii')
+                # ).model_dump())
+                await asyncio.sleep((chunk_size / 48000) * 2 / 3)
 
     except Exception as e:
         logger.error(e)

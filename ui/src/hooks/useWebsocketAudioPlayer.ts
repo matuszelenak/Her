@@ -40,17 +40,23 @@ export function useWebsocketAudioPlayer() {
             const spaceToEnd = MAX_AUDIO_BUFFER_SAMPLES - writePointer;
 
             if (numIncomingSamples <= spaceToEnd) {
-                samplesArray.set(incomingSamples, writePointer);
-                writePointer += numIncomingSamples;
+                for (let i = 0; i < numIncomingSamples; i++) {
+                    samplesArray[writePointer + i] = incomingSamples[i]
+                }
+                writePointer += numIncomingSamples
             } else {
-                samplesArray.set(incomingSamples.subarray(0, spaceToEnd), writePointer);
-                samplesArray.set(incomingSamples.subarray(spaceToEnd), 0);
-                writePointer = numIncomingSamples - spaceToEnd;
+                for (let i = 0; i < spaceToEnd; i++) {
+                    samplesArray[writePointer + i] = incomingSamples[i]
+                }
+                for (let i = 0; i < numIncomingSamples - spaceToEnd; i++) {
+                    samplesArray[i] = incomingSamples[spaceToEnd + i]
+                }
+                writePointer = numIncomingSamples - spaceToEnd
             }
-            if (writePointer === MAX_AUDIO_BUFFER_SAMPLES) writePointer = 0;
+            if (writePointer === MAX_AUDIO_BUFFER_SAMPLES) writePointer = 0
 
             Atomics.store(controlArray, CTL_WRITE_IDX, writePointer);
-            Atomics.add(controlArray, CTL_SAMPLES_AVAIL_IDX, numIncomingSamples); // Atomically add
+            Atomics.add(controlArray, CTL_SAMPLES_AVAIL_IDX, numIncomingSamples);
             }
         )
         return () => unsubscribe()
@@ -86,10 +92,8 @@ export function useWebsocketAudioPlayer() {
                 }
             )
 
-
             node.port.onmessage = (event) => {
                 if (event.data?.type === 'control') {
-                    // Forward control command to backend
                     sendJsonMessage({
                         type: 'flow_control',
                         command: event.data.command
@@ -99,7 +103,6 @@ export function useWebsocketAudioPlayer() {
                     setWorkletReady(true)
                 }
                 else {
-                    // Handle other potential messages from worklet if needed
                     console.log('[React] Received message from worklet:', event.data);
                 }
             };

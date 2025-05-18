@@ -1,12 +1,13 @@
 import asyncio
 import base64
 
+import numpy as np
+
 from models.sent_events import WsSendSpeechSamplesEvent
 from models.session import Session
 from providers import providers
 from providers.base import TextToSpeechProvider
 from utils.log import get_logger
-from utils.sound import resample_chunk
 
 logger = get_logger(__name__)
 
@@ -20,16 +21,19 @@ async def samples_sender_task(session: Session, outgoing_samples_queue: asyncio.
                 break
 
             async with session.speech_sending_lock:
-                resampled = resample_chunk(samples, 24000, 48000)
+                resampled = [0.0 for _ in range(len(samples) * 2)]
+                for i in range(len(samples)):
+                    resampled[i * 2] = samples[i]
+                    resampled[i * 2 + 1] = samples[i]
 
                 logger.debug(f'Sent {len(samples)} samples')
 
                 await session.send_event(
                     WsSendSpeechSamplesEvent(
-                        samples=base64.b64encode(resampled.tobytes()).decode('ascii')
+                        samples=base64.b64encode(np.array(resampled, dtype=np.float32).tobytes()).decode('ascii')
                     )
                 )
-                await asyncio.sleep(0.02)
+                await asyncio.sleep(len(resampled) / 48000 * 2 / 3)
     except Exception as e:
         logger.error(e)
         logger.debug(str(e), exc_info=True, stack_info=True)
