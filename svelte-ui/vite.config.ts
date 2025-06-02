@@ -10,9 +10,9 @@ export default defineConfig({
 	server: {
 		host: '0.0.0.0',
 		hmr: {
-			clientPort: 5000,
+			clientPort: 5001,
 		},
-		port: 5000,
+		port: 5001,
 		open: false,
 		allowedHosts: ['ui'],
 	},

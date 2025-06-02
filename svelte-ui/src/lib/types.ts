@@ -112,3 +112,14 @@ export type Message = {
     role: 'user' | 'assistant'
     content: string
 }
+
+
+export type ChatsResponse = {
+    id: string
+    header: string
+}[]
+
+export type Chat = {
+    id: string
+    messages: Message[]
+}

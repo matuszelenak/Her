@@ -84,7 +84,7 @@ services:
     depends_on:
       - server
     ports:
-      - "5001:5000"
+      - "5001:5001"
     develop:
       watch:
         - action: rebuild

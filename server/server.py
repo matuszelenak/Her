@@ -1,17 +1,17 @@
 import asyncio
-import base64
 import logging
 from datetime import datetime
 from uuid import uuid4, UUID
 
 import numpy as np
 import pydantic
+import scipy.io.wavfile as wav
 import starlette
 from fastapi import FastAPI, WebSocket, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
-import scipy.io.wavfile as wav
 
 from db.models import Chat
 from db.session import get_db
@@ -21,16 +21,22 @@ from models.configuration import get_previous_or_default_config
 from models.received_events import WsReceiveSamplesEvent, WsReceiveEvent, WsReceiveSpeechEndEvent, \
     WsReceiveTextPrompt, WsReceiveSpeechPromptEvent, WsReceiveAgentSpeechEnd, WsReceiveConfigChange, \
     WsReceiveFlowControl
-from models.sent_events import WsManualPromptEvent, WsSendConfigurationEvent, WsSendSpeechSamplesEvent
+from models.sent_events import WsManualPromptEvent, WsSendConfigurationEvent
 from models.session import Session
 from providers import providers
 from tasks.coordination import trigger_agent_response
 from tasks.stt import stt_task
 from utils.log import get_logger
-from utils.sound import resample_chunk
 from utils.validation import should_agent_respond
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 logger = get_logger(__name__)
 

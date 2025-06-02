@@ -53,7 +53,7 @@ export const Chat = ({chatId}: { chatId: string }) => {
 
     const {pause, start} = useMicVAD({
         startOnLoad: true,
-        model: 'v5',
+        model: 'legacy',
         onSpeechFrames: (audio: Float32Array) => {
             sendJsonMessage({
                 'type': 'samples',
