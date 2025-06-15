@@ -1,9 +1,7 @@
 import time
 from typing import Optional
 
-from utils.log import get_logger
-
-logger = get_logger(__name__)
+import logfire
 
 
 class ElapsedTime:
@@ -24,4 +22,4 @@ class ElapsedTime:
         end_time = time.time()
 
         self.duration = end_time - self.start_time
-        logger.debug(f'{self.code_block_name or "Execution"} took {self.duration:.2f}s')
+        logfire.debug(f'{self.code_block_name or "Execution"} took {self.duration:.2f}s')

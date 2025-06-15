@@ -1,10 +1,10 @@
 import asyncio
 
+import logfire
+
 from tasks.llm import llm_query_task
-from utils.log import get_logger
 from models.session import Session
 
-logger = get_logger(__name__)
 
 
 def trigger_agent_response(session: Session):
@@ -19,6 +19,6 @@ def trigger_agent_response(session: Session):
     prompt = session.prompt
     session.prompt = None
 
-    logger.debug(f'Accepted prompt {prompt}')
+    logfire.info(f'Accepted prompt {prompt}')
 
     session.llm_task = asyncio.create_task(llm_query_task(session, prompt))

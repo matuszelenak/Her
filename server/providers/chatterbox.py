@@ -14,6 +14,7 @@ from providers.base import TextToSpeechProvider
 
 class ChatterBoxConfig(BaseModel):
     provider: Literal['chatterbox']
+    voice: str
     exaggeration: float = 0.6
     cfg_weight: float = 0.5
     temperature: float = 0.7

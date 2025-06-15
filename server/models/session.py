@@ -1,18 +1,19 @@
 import asyncio
 import datetime
+import json
 from dataclasses import dataclass
 from typing import Optional, Any
 from uuid import uuid4
 
+import aiofiles
+import logfire
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 from starlette.websockets import WebSocket
 
 from db.models import Chat
+from models.configuration import SessionConfig
 from models.sent_events import WsSendEvent
-from utils.log import get_logger
-
-logger = get_logger(__name__)
 
 
 @dataclass
@@ -20,6 +21,8 @@ class Session:
     id: str
     db: AsyncSession
     chat: Chat
+    config: SessionConfig
+
     client_socket: WebSocket = None
     stt_task: Optional[asyncio.Task] = None
     llm_task: Optional[asyncio.Task] = None
@@ -60,17 +63,18 @@ class Session:
         await self.db.commit()
         await self.db.refresh(self.chat)
 
-    async def set_config_from_event(self, field: str, value: Any):
-        curr = self.chat.config_db
+    async def set_config_field_from_event(self, field: str, value: Any):
+        cfg_json = self.config.model_dump()
+        curr = cfg_json
         spl = field.split('.')
         for part in spl[:-1]:
             curr = curr[part]
 
         curr[spl[-1]] = value
 
-        if self.chat.id is not None:
-            flag_modified(self.chat, 'config_db')
-            await self.db.commit()
-            await self.db.refresh(self.chat)
+        logfire.info(f'Changed config field {field} -> {value}')
 
-        logger.debug(f'Changed config field {field} -> {value}')
+        async with aiofiles.open('/config.json', 'w', encoding='utf-8') as f:
+            await f.write(json.dumps(cfg_json))
+
+        self.config = SessionConfig.model_validate(cfg_json)

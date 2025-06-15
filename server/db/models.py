@@ -11,7 +11,6 @@ class Chat(Base):
     started_at = Column(DateTime, nullable=False, index=True)
     header = Column(String, nullable=True)
 
-    config_db = Column(JSON, nullable=False)
     messages = Column(JSON, nullable=False, default=list)
 
     def __str__(self):
@@ -19,8 +18,3 @@ class Chat(Base):
 
     def __len__(self):
         return len(self.messages)
-
-    @property
-    def config(self):
-        from models.configuration import SessionConfig
-        return SessionConfig.model_validate(self.config_db)

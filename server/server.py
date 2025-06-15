@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from uuid import uuid4, UUID
 
+import logfire
 import pydantic
 import starlette
 from fastapi import FastAPI, WebSocket, Depends
@@ -15,7 +16,7 @@ from db.models import Chat
 from db.session import get_db
 from endpoints.audio import audio_router
 from endpoints.chat import chat_router
-from models.configuration import get_previous_or_default_config
+from models.configuration import load_config
 from models.received_events import WsReceiveSamplesEvent, WsReceiveEvent, WsReceiveSpeechEndEvent, \
     WsReceiveTextPrompt, WsReceiveSpeechPromptEvent, WsReceiveAgentSpeechEnd, WsReceiveConfigChange, \
     WsReceiveFlowControl
@@ -24,8 +25,8 @@ from models.session import Session
 from providers import providers
 from tasks.coordination import trigger_agent_response
 from tasks.stt import stt_task
-from utils.log import get_logger
 from utils.validation import should_agent_respond
+
 
 app = FastAPI()
 app.add_middleware(
@@ -36,7 +37,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logger = get_logger(__name__)
+logfire.configure(send_to_logfire="if-token-present")
+logfire.instrument_fastapi(app)
 
 app.include_router(chat_router)
 app.include_router(audio_router)
@@ -64,7 +66,7 @@ async def health_endpoint(websocket: WebSocket):
 async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = Depends(get_db)):
     await websocket.accept()
 
-    logger.debug(f"Client connected to chat {chat_id}")
+    logfire.info(f"Client connected to chat {chat_id}")
 
     session_id = str(uuid4())
 
@@ -73,21 +75,22 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
     chat = results.scalar()
 
     if chat is None:
-        logger.debug(f"New chat initiated")
-        config = await get_previous_or_default_config(db)
-        chat = Chat(config_db=config)
+        logfire.info(f"New chat initiated")
+        chat = Chat()
         chat._id = UUID(chat_id)
 
+    config = await load_config()
     session = Session(
         session_id,
         db,
-        chat
+        chat,
+        config
     )
 
     session.client_socket = websocket
 
     await session.send_event(
-        WsSendConfigurationEvent(configuration=session.chat.config)
+        WsSendConfigurationEvent(configuration=session.config)
     )
 
     try:
@@ -99,7 +102,7 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
             try:
                 event = WsReceiveEvent.model_validate({'event': event_data}).event
             except pydantic.ValidationError:
-                logger.debug(f'Received invalid socket event: {event_data}')
+                logfire.warning(f'Received invalid socket event: {event_data}')
                 continue
 
             if isinstance(event, WsReceiveSamplesEvent):
@@ -138,17 +141,17 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
                 session.last_interaction = datetime.now()
 
             elif isinstance(event, WsReceiveConfigChange):
-                await session.set_config_from_event(event.path, event.value)
+                await session.set_config_field_from_event(event.path, event.value)
                 await session.send_event(
-                    WsSendConfigurationEvent(configuration=session.chat.config)
+                    WsSendConfigurationEvent(configuration=session.config)
                 )
 
             elif isinstance(event, WsReceiveFlowControl):
                 if event.command == 'pause_sending':
-                    logger.debug('Pausing sending')
+                    logfire.debug('Pausing sending')
                     await session.speech_sending_lock.acquire()
                 elif event.command == 'resume_sending':
-                    logger.debug('Resuming sending')
+                    logfire.debug('Resuming sending')
                     session.speech_sending_lock.release()
 
 
@@ -156,9 +159,8 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
         pass
 
     except Exception as e:
-        logger.error('Exception in main', exc_info=True)
-        logger.error(str(e))
+        logfire.error(f'Exception in main {e}', _exc_info=True)
 
     finally:
-        logger.debug(f'Terminating client')
+        logfire.info(f'Terminating client')
         session.terminate()

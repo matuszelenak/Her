@@ -10,9 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
 
 from agents import gen
-from log_utils import get_logger
 
-logger = get_logger(__name__)
 
 logfire.configure(send_to_logfire="if-token-present")
 logfire.instrument_openai()

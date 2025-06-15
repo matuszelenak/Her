@@ -1,28 +1,24 @@
 import asyncio
-import os
 import re
 from datetime import datetime
 from typing import Tuple, Literal, Union, AsyncGenerator, Iterable
 
+import logfire
 from openai import AsyncClient
 from openai.types.chat import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_chunk import Choice
 
+from config import config
 from models.base import Token, Message
 from models.sent_events import WsSendTokenEvent
 from models.session import Session
 from tasks.tts import tts_task
-from utils.log import get_logger
 from utils.sanitization import clean_text_for_tts
-
-logger = get_logger(__name__)
 
 TokenTuple = Tuple[Literal['token'], Choice]
 SentenceTuple = Tuple[Literal['sentence'], str]
 
-
-assistant_api_url = os.environ.get('ASSISTANT_API_URL')
-client = AsyncClient(base_url=assistant_api_url, api_key='whatever')
+client = AsyncClient(base_url=config.ASSISTANT_API_URL, api_key='none')
 
 
 async def llm_query_task(session: Session, prompt: str):
@@ -34,7 +30,7 @@ async def llm_query_task(session: Session, prompt: str):
 
         llm_response_queue = asyncio.Queue()
 
-        if session.chat.config.app.voice_output_enabled:
+        if session.config.app.voice_output_enabled:
             session.tts_task = asyncio.create_task(tts_task(session, llm_response_queue))
 
         complete_response = ""
@@ -60,7 +56,7 @@ async def llm_query_task(session: Session, prompt: str):
                 cleaned = clean_text_for_tts(content)
 
                 if len(cleaned.strip()) > 2:
-                    logger.debug(f'Adding to TTS queue {cleaned}')
+                    logfire.info(f'Adding to TTS queue {cleaned}')
                     await llm_response_queue.put(cleaned)
 
         await session.append_message({
@@ -78,10 +74,9 @@ async def llm_query_task(session: Session, prompt: str):
         await llm_response_queue.put(None)
 
     except asyncio.CancelledError:
-        logger.debug('LLM task cancelled')
+        logfire.info('LLM task cancelled')
     except Exception as e:
-        logger.error('Error in LLM task', exc_info=True)
-        logger.error(str(e))
+        logfire.error(f'Error in LLM task: {e}', _exc_info=True)
 
 
 async def generate_llm_response(messages: Iterable[ChatCompletionMessageParam]) -> AsyncGenerator[Union[TokenTuple, SentenceTuple], None]:

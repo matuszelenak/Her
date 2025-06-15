@@ -15,18 +15,18 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai import Agent, RunContext, Tool
 from pydantic_ai.common_tools.tavily import TavilySearchTool
 from pydantic_ai.messages import TextPartDelta, PartDeltaEvent, ModelMessage
+from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.openai import OpenAIProvider
 from tavily import AsyncTavilyClient
 
-from log_utils import get_logger
+from settings import config
 from tools.spotify import play_song, stop_playback, change_volume, next_song, previous_song
-
-logger = get_logger(__name__)
 
 load_dotenv()
 
 gpt_model = OpenAIModel(
-    os.environ.get("OPENAI_MODEL"),
-    provider=OpenAIProvider(api_key='none', base_url=os.environ.get('OPENAI_API_URL')),
+    config.OPENAI_MODEL,
+    provider=OpenAIProvider(api_key='none', base_url=config.OPENAI_API_URL),
 )
 
 knowledge_agent = Agent(
@@ -44,9 +44,8 @@ async def web_search_tool(query: str):
         query: The search query
     """
 
-    logger.debug(f'Search {query}')
-    api_key = os.environ.get('TAVILY_API_TOKEN')
-    tool = TavilySearchTool(client=AsyncTavilyClient(api_key))
+    logfire.debug(f'Search {query}')
+    tool = TavilySearchTool(client=AsyncTavilyClient(config.TAVILY_API_TOKEN))
 
     result = await tool(query)
     return result
@@ -93,7 +92,7 @@ async def knowledge_agent_tool(ctx: RunContext[None], question: str) -> AsyncGen
         ctx: RunContext
         question: the users message
     """
-    logger.debug(f'Knowledge {question}')
+    logfire.debug(f'Knowledge {question}')
     result = await knowledge_agent.run(question)
     return result.data
 

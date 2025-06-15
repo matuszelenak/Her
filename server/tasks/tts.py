@@ -1,15 +1,13 @@
 import asyncio
 import base64
 
+import logfire
 import numpy as np
 
 from models.sent_events import WsSendSpeechSamplesEvent
 from models.session import Session
 from providers import providers
 from providers.base import TextToSpeechProvider
-from utils.log import get_logger
-
-logger = get_logger(__name__)
 
 
 async def samples_sender_task(session: Session, outgoing_samples_queue: asyncio.Queue):
@@ -17,7 +15,7 @@ async def samples_sender_task(session: Session, outgoing_samples_queue: asyncio.
         while True:
             samples = await outgoing_samples_queue.get()
             if samples is None:
-                logger.debug('Sent all the samples, exiting...')
+                logfire.debug('Sent all the samples, exiting...')
                 break
 
             async with session.speech_sending_lock:
@@ -26,7 +24,7 @@ async def samples_sender_task(session: Session, outgoing_samples_queue: asyncio.
                     resampled[i * 2] = samples[i]
                     resampled[i * 2 + 1] = samples[i]
 
-                logger.debug(f'Sent {len(samples)} samples')
+                logfire.debug(f'Sent {len(samples)} samples')
 
                 await session.send_event(
                     WsSendSpeechSamplesEvent(
@@ -35,16 +33,15 @@ async def samples_sender_task(session: Session, outgoing_samples_queue: asyncio.
                 )
                 await asyncio.sleep(len(resampled) / 48000 * 2 / 3)
     except Exception as e:
-        logger.error(e)
-        logger.debug(str(e), exc_info=True, stack_info=True)
+        logfire.error(f'Exception in sample sender: {e}', _exc_info=True)
 
 
 async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
-    tts_provider: TextToSpeechProvider = providers['tts'][session.chat.config.tts.provider]
+    tts_provider: TextToSpeechProvider = providers['tts'][session.config.tts.provider]
 
     sender_task = None
     try:
-        voice = session.chat.config.tts.voice
+        voice = session.config.tts.voice
 
         outgoing_samples_queue = asyncio.Queue()
         sender_task = asyncio.create_task(samples_sender_task(session, outgoing_samples_queue))
@@ -65,7 +62,6 @@ async def tts_task(session: Session, llm_response_queue: asyncio.Queue):
     except asyncio.CancelledError:
         if sender_task:
             sender_task.cancel()
-        logger.debug('TTS task cancelled')
+        logfire.info('TTS task cancelled')
     except Exception as e:
-        logger.error('Exception in TTS task', exc_info=True)
-        logger.error(str(e))
+        logfire.error(f'Exception in TTS task {e}', exc_info=True)

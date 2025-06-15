@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 async def should_agent_respond(session):
     # llm: OpenAIProvider = providers['llm']
     if session.last_interaction is not None and (datetime.now() - session.last_interaction) < timedelta(
-            milliseconds=session.chat.config.app.inactivity_timeout_ms
+            milliseconds=session.config.app.inactivity_timeout_ms
     ):
         return True
     # response = await llm.chat.completions.create(
