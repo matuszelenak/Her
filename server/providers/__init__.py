@@ -2,6 +2,7 @@ import os
 from typing import Dict, TypedDict
 
 from providers.base import BaseProvider, TextToSpeechProvider
+from providers.chatterbox import ChatterBoxAudioProvider
 from providers.kokoro import KokoroAudioProvider
 from providers.orpheus import OrpheusAudioProvider
 from providers.whisper import WhisperProvider
@@ -23,6 +24,11 @@ def initialize_providers() -> ProviderDict:
     orpheus_url = os.environ.get('ORPHEUS_API_URL')
     if orpheus_url:
         p['tts']['orpheus'] = OrpheusAudioProvider(orpheus_url)
+
+    chatterbox_url = os.environ.get('CHATTERBOX_API_URL')
+    if chatterbox_url:
+        p['tts']['chatterbox'] = ChatterBoxAudioProvider(chatterbox_url)
+
 
     whisper_url = os.environ.get('WHISPER_API_URL')
     if whisper_url:

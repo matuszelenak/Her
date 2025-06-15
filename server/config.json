@@ -5,8 +5,7 @@
     "language": "en"
   },
   "tts": {
-    "provider": "orpheus",
-    "voice": "leah"
+    "provider": "chatterbox"
   },
   "app": {
     "prevalidate_prompt": true,

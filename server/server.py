@@ -3,9 +3,7 @@ import logging
 from datetime import datetime
 from uuid import uuid4, UUID
 
-import numpy as np
 import pydantic
-import scipy.io.wavfile as wav
 import starlette
 from fastapi import FastAPI, WebSocket, Depends
 from sqlalchemy import select
@@ -44,67 +42,6 @@ app.include_router(chat_router)
 app.include_router(audio_router)
 
 app.mount('/audio', StaticFiles(directory='/tts_output'), name='tts-output')
-
-
-async def samples_sender_task(socket: WebSocket, lock: asyncio.Lock):
-    try:
-        sample_rate, audio_data = wav.read('utils/please_streamed.wav')
-        total_samples = audio_data.shape[0]
-
-        chunk_size = 4000
-        for prefix_len in range(0, total_samples, chunk_size):
-            samples: np.ndarray = audio_data[prefix_len:prefix_len + chunk_size]
-            # samples = audio_data[prefix_len:prefix_len + chunk_size]
-            if samples is None:
-                logger.debug('Sent all the samples, exiting...')
-                break
-
-            async with lock:
-                # resampled = resample_chunk(samples, 48000, 48000
-                resampled = [0.0 for _ in range(len(samples) * 2)]
-                for i in range(len(samples)):
-                    resampled[i * 2] = samples[i]  / 32768.0
-                    resampled[i * 2 + 1] = samples[i] / 32768.0
-                await socket.send_bytes(np.array(resampled, dtype=np.float32).tobytes())
-                # await socket.send_json(WsSendSpeechSamplesEvent(
-                #     samples=base64.b64encode(resampled.tobytes()).decode('ascii')
-                # ).model_dump())
-                await asyncio.sleep((chunk_size / 48000) * 2 / 3)
-
-    except Exception as e:
-        logger.error(e)
-        logger.debug(str(e), exc_info=True, stack_info=True)
-
-
-@app.websocket('/ws/audio')
-async def audio_endpoint(websocket: WebSocket):
-    await websocket.accept()
-
-    lock = asyncio.Lock()
-
-    sender_task = asyncio.create_task(samples_sender_task(websocket, lock))
-
-    try:
-        while True:
-            event_data = await websocket.receive_json()
-
-            try:
-                event = WsReceiveEvent.model_validate({'event': event_data}).event
-            except pydantic.ValidationError:
-                logger.debug(f'Received invalid socket event: {event_data}')
-                continue
-
-            if isinstance(event, WsReceiveFlowControl):
-                if event.command == 'pause_sending':
-                    logger.debug('Pausing sending')
-                    await lock.acquire()
-                elif event.command == 'resume_sending':
-                    logger.debug('Resuming sending')
-                    lock.release()
-    except starlette.websockets.WebSocketDisconnect:
-        pass
-    finally:
-        sender_task.cancel()
 
 
 @app.websocket("/ws/health")

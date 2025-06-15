@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from providers.kokoro import KokoroConfig
 from providers.orpheus import OrpheusConfig
+from providers.chatterbox import ChatterBoxConfig
 
 
 class STTConfig(BaseModel):
@@ -24,7 +25,7 @@ class AppConfig(BaseModel):
 
 class SessionConfig(BaseModel):
     stt: STTConfig
-    tts: Union[KokoroConfig, OrpheusConfig]
+    tts: Union[KokoroConfig, OrpheusConfig, ChatterBoxConfig]
     app: AppConfig
 
 

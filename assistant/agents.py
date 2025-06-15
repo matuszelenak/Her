@@ -22,6 +22,8 @@ from tools.spotify import play_song, stop_playback, change_volume, next_song, pr
 
 logger = get_logger(__name__)
 
+load_dotenv()
+
 gpt_model = OpenAIModel(
     os.environ.get("OPENAI_MODEL"),
     provider=OpenAIProvider(api_key='none', base_url=os.environ.get('OPENAI_API_URL')),
