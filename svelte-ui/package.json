@@ -30,8 +30,8 @@
 		"@tanstack/svelte-query-devtools": "^5.79.0",
 		"@types/audioworklet": "^0.0.75",
 		"axios": "^1.9.0",
+		"onnxruntime-web": "^1.22.0",
 		"tailwindcss": "^4.1.8",
-		"vite-plugin-cross-origin-isolation": "^0.1.6",
 		"vite-plugin-static-copy": "^3.0.0"
 	}
 }

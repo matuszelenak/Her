@@ -6,9 +6,11 @@
     import type {PageData} from './$types'
     import {getChat} from "$lib/api";
     import {log} from "$lib/log";
-    import {type Message, type WebSocketEvent, WebsocketEventType} from "$lib/types";
+    import {type LiveTranscribedText, type Message, type WebSocketEvent, WebsocketEventType} from "$lib/types";
     import workletUrl from "$lib/audio-processor.ts?url";
-    import {base64ToArrayBuffer} from "$lib/encoding";
+    import {arrayBufferToBase64, base64ToArrayBuffer} from "$lib/encoding";
+    import {MicVAD} from "$lib/vad/real-time-vad";
+    import {defaultLegacyFrameProcessorOptions} from "$lib/vad/frame-processor";
 
     const MAX_AUDIO_BUFFER_SAMPLES = 65536 * 4
 
@@ -30,9 +32,14 @@
     let controlSAB: SharedArrayBuffer | null = null
     let audioBufferView: Float32Array | null = null
     let controlBufferView: Int32Array | null = null
+
+    let vad: MicVAD | null = null
+    let notifySpeechEndTimeout: NodeJS.Timeout | null = null
+
     let isConnected = $state(false)
     let messages: Message[] = $state([])
     let manualUserMessage = $state("")
+    let transcribedUserMessage: LiveTranscribedText = $state({stableWords: [], undeterminedWords: []})
     let agentMessage = $state("")
 
     function connectWebSocket() {
@@ -46,6 +53,11 @@
             const message = JSON.parse(event.data) as WebSocketEvent
 
             if (message.type == WebsocketEventType.TOKEN) {
+                if (transcribedUserMessage.stableWords.length > 0) {
+                    messages = [...messages, {role: 'user', content: transcribedUserMessage.stableWords.join(' ')}]
+                    transcribedUserMessage = {stableWords: [], undeterminedWords: []}
+                }
+
                 if (message.token != null) {
                     agentMessage = `${agentMessage}${message.token.message.content}`
                 } else {
@@ -60,6 +72,19 @@
                 const incomingSamples = new Float32Array(base64ToArrayBuffer(message.samples))
                 addAudioDataToSAB(incomingSamples)
             }
+            if (message.type == WebsocketEventType.USER_TRANSCRIPTION) {
+                if (message.segment.complete) {
+                    transcribedUserMessage = {
+                        stableWords: [...transcribedUserMessage.stableWords, ...message.segment.words],
+                        undeterminedWords: []
+                    }
+                } else {
+                    transcribedUserMessage = {
+                        stableWords: transcribedUserMessage.stableWords,
+                        undeterminedWords: message.segment.words
+                    }
+                }
+            }
         }
 
         webSocket.onerror = (errEvent) => {
@@ -69,6 +94,12 @@
         webSocket.onclose = (event) => {
             isConnected = false
             log('info', `WebSocket disconnected. Code: ${event.code}, Reason: "${event.reason}"`)
+        }
+    }
+
+    const sendJsonMessage = (payload: any) => {
+        if (webSocket) {
+            webSocket.send(JSON.stringify(payload))
         }
     }
 
@@ -145,14 +176,14 @@
                     log('info', "AudioWorklet reported ready.")
                     if (audioContext!.state === 'running') {
                         if (webSocket && webSocket.readyState === WebSocket.OPEN) {
-                            webSocket.send(JSON.stringify({type: 'set_sample_rate', rate: audioContext!.sampleRate}))
+                            sendJsonMessage({type: 'set_sample_rate', rate: audioContext!.sampleRate})
                         }
                     } else {
                         log('info', "Worklet ready, but AudioContext still suspended.")
                     }
                 } else if (event.data?.type === 'control') {
                     if (webSocket && webSocket.readyState === WebSocket.OPEN) {
-                        webSocket.send(JSON.stringify({type: 'flow_control', command: event.data.command}))
+                        sendJsonMessage({type: 'flow_control', command: event.data.command})
                     }
                 }
             }
@@ -179,6 +210,30 @@
             const audioInitSuccess = await initAudioSystem()
             if (audioInitSuccess) {
                 connectWebSocket()
+
+                vad = await MicVAD.new({
+                    ...defaultLegacyFrameProcessorOptions,
+                    onSpeechFrames: (audio) => {
+                        sendJsonMessage({
+                            'type': 'samples',
+                            'data': arrayBufferToBase64(audio.buffer)
+                        })
+                    },
+                    onSpeechEnd: () => {
+                        sendJsonMessage({'type': 'speech_end'})
+                        if (notifySpeechEndTimeout != null) {
+                            clearTimeout(notifySpeechEndTimeout)
+                        }
+                        notifySpeechEndTimeout = setTimeout(() => {
+                            console.log('Confirm speech submission')
+                            sendJsonMessage({
+                                'type': 'speech_prompt_end'
+                            })
+                        }, 1000)
+                    },
+                    model: 'legacy',
+                })
+                vad.start()
             } else {
                 log('error', "Audio system initialization failed, WebSocket connection aborted.")
             }
@@ -198,6 +253,10 @@
                 audioContext.close().catch(e => log('error', `Error closing AudioContext: ${e}`))
                 audioContext = null
             }
+            if (vad) {
+                vad.destroy()
+            }
+            vad = null;
             audioSAB = null;
             controlSAB = null;
             audioBufferView = null;
@@ -244,9 +303,27 @@
                 </div>
             {/if}
         {/each}
-        <p>
-            <SvelteMarkdown source={agentMessage}/>
-        </p>
+
+        {#if agentMessage.length > 0}
+            <div class="flex justify-start">
+                <div class="max-w-[70%] bg-gray-200 text-gray-800 p-3 rounded-lg shadow">
+                    <p class="text-sm">
+                        <SvelteMarkdown source={agentMessage}/>
+                    </p>
+                </div>
+            </div>
+        {/if}
+
+        {#if transcribedUserMessage.stableWords.length > 0 || transcribedUserMessage.undeterminedWords.length > 0}
+            <div class="flex justify-end">
+                <div class="max-w-[70%] bg-blue-500 text-white p-3 rounded-lg shadow">
+                    <p class="text-sm">
+                        {`${transcribedUserMessage.stableWords.join(' ')} ${transcribedUserMessage.undeterminedWords.join(' ')}`}
+                    </p>
+                </div>
+            </div>
+        {/if}
+
         <input class="input" bind:value={manualUserMessage} onkeydown={(e) => {
         if (e.keyCode === 13 && !e.shiftKey && webSocket) {
             webSocket.send(JSON.stringify({type: 'text_prompt', prompt: manualUserMessage}))

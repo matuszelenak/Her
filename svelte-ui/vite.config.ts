@@ -1,13 +1,34 @@
 import {defineConfig} from 'vite'
-import crossOriginIsolation from 'vite-plugin-cross-origin-isolation'
 import {sveltekit} from '@sveltejs/kit/vite';
 import tailwindcss from "@tailwindcss/vite";
+import {viteStaticCopy} from "vite-plugin-static-copy";
 
 export default defineConfig({
 	plugins: [
 		tailwindcss(),
 		sveltekit(),
-		crossOriginIsolation()
+		{
+			name: "isolation",
+			configureServer(server) {
+				server.middlewares.use((_req, res, next) => {
+					res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+					res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+					next();
+				});
+			},
+		},
+		viteStaticCopy({
+			targets: [
+				{
+					src: 'node_modules/onnxruntime-web/dist/*.wasm',
+					dest: './'
+				},
+				{
+					src: 'node_modules/onnxruntime-web/dist/*.mjs',
+					dest: './'
+				}
+			]
+		})
 	],
 	server: {
 		host: '0.0.0.0',
@@ -16,7 +37,7 @@ export default defineConfig({
 		},
 		port: 5000,
 		open: false,
-		allowedHosts: ['ui'],
+		allowedHosts: ['ui']
 	},
 	worker: {
 		format: 'es'

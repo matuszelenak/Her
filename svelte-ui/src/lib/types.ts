@@ -123,3 +123,8 @@ export type Chat = {
     id: string
     messages: Message[]
 }
+
+export type LiveTranscribedText = {
+    stableWords: string[],
+    undeterminedWords: string[]
+}
