@@ -101,59 +101,59 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
 
             try:
                 event = WsReceiveEvent.model_validate({'event': event_data}).event
+
+                if isinstance(event, WsReceiveSamplesEvent):
+                    if session.stt_task is None:
+                        session.stt_task = asyncio.create_task(stt_task(session, received_speech_queue))
+                    await received_speech_queue.put(event.data)
+
+                elif isinstance(event, WsReceiveSpeechEndEvent):
+                    await received_speech_queue.put(None)
+
+                elif isinstance(event, WsReceiveTextPrompt):
+                    logging.debug('Received manual prompt')
+                    session.prompt = f'{session.prompt or ""}{event.prompt}'
+
+                    await session.send_event(
+                        WsManualPromptEvent(
+                            text=event.prompt
+                        )
+                    )
+
+                    trigger_agent_response(session)
+
+                elif isinstance(event, WsReceiveSpeechPromptEvent):
+                    if session.prompt:
+                        warrants_response = await should_agent_respond(session)
+
+                        if warrants_response:
+                            trigger_agent_response(session)
+                        else:
+                            session.prompt = None
+                            # await session.send_event({
+                            #     'type': 'user_speech_transcription_invalidation'
+                            # })
+
+                elif isinstance(event, WsReceiveAgentSpeechEnd):
+                    session.last_interaction = datetime.now()
+
+                elif isinstance(event, WsReceiveConfigChange):
+                    await session.set_config_field_from_event(event.path, event.value)
+                    await session.send_event(
+                        WsSendConfigurationEvent(configuration=session.config)
+                    )
+
+                elif isinstance(event, WsReceiveFlowControl):
+                    if event.command == 'pause_sending':
+                        logfire.debug('Pausing sending')
+                        await session.speech_sending_lock.acquire()
+                    elif event.command == 'resume_sending':
+                        logfire.debug('Resuming sending')
+                        session.speech_sending_lock.release()
+
             except pydantic.ValidationError:
                 logfire.warning(f'Received invalid socket event: {event_data}')
                 continue
-
-            if isinstance(event, WsReceiveSamplesEvent):
-                if session.stt_task is None:
-                    session.stt_task = asyncio.create_task(stt_task(session, received_speech_queue))
-                await received_speech_queue.put(event.data)
-
-            elif isinstance(event, WsReceiveSpeechEndEvent):
-                await received_speech_queue.put(None)
-
-            elif isinstance(event, WsReceiveTextPrompt):
-                logging.debug('Received manual prompt')
-                session.prompt = f'{session.prompt or ""}{event.prompt}'
-
-                await session.send_event(
-                    WsManualPromptEvent(
-                        text=event.prompt
-                    )
-                )
-
-                trigger_agent_response(session)
-
-            elif isinstance(event, WsReceiveSpeechPromptEvent):
-                if session.prompt:
-                    warrants_response = await should_agent_respond(session)
-
-                    if warrants_response:
-                        trigger_agent_response(session)
-                    else:
-                        session.prompt = None
-                        # await session.send_event({
-                        #     'type': 'user_speech_transcription_invalidation'
-                        # })
-
-            elif isinstance(event, WsReceiveAgentSpeechEnd):
-                session.last_interaction = datetime.now()
-
-            elif isinstance(event, WsReceiveConfigChange):
-                await session.set_config_field_from_event(event.path, event.value)
-                await session.send_event(
-                    WsSendConfigurationEvent(configuration=session.config)
-                )
-
-            elif isinstance(event, WsReceiveFlowControl):
-                if event.command == 'pause_sending':
-                    logfire.debug('Pausing sending')
-                    await session.speech_sending_lock.acquire()
-                elif event.command == 'resume_sending':
-                    logfire.debug('Resuming sending')
-                    session.speech_sending_lock.release()
-
 
     except starlette.websockets.WebSocketDisconnect:
         pass

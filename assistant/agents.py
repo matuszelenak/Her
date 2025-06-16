@@ -14,15 +14,20 @@ from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai import Agent, RunContext, Tool
 from pydantic_ai.common_tools.tavily import TavilySearchTool
-from pydantic_ai.messages import TextPartDelta, PartDeltaEvent, ModelMessage
+from pydantic_ai.mcp import MCPServerStreamableHTTP
+from pydantic_ai.messages import TextPartDelta, PartDeltaEvent, ModelMessage, FunctionToolCallEvent, PartStartEvent, \
+    ToolCallPartDelta, FinalResultEvent, FunctionToolResultEvent
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from tavily import AsyncTavilyClient
 
 from settings import config
-from tools.spotify import play_song, stop_playback, change_volume, next_song, previous_song
 
 load_dotenv()
+
+if __name__ == '__main__':
+    logfire.configure(send_to_logfire="if-token-present")
+    logfire.instrument_openai()
 
 gpt_model = OpenAIModel(
     config.OPENAI_MODEL,
@@ -32,7 +37,7 @@ gpt_model = OpenAIModel(
 knowledge_agent = Agent(
     gpt_model,
     instructions="You are a conversational agent that answers questions about the world."
-                  "For anything but the most obvious questions use the web search tool.",
+                  "For anything but the most obvious questions use the web search tool./no_think",
 )
 
 
@@ -51,28 +56,12 @@ async def web_search_tool(query: str):
     return result
 
 
-home_automation_agent = Agent(
-    gpt_model,
-    instructions="""
-    You are a home assistant agent, capable of calling tools that manage the smart devices in the users home
-    """,
-    tools=[
-        Tool(play_song, takes_ctx=False),
-        Tool(previous_song, takes_ctx=False),
-        Tool(next_song, takes_ctx=False),
-        Tool(stop_playback, takes_ctx=False),
-        Tool(change_volume, takes_ctx=False)
-    ]
-)
-
 supervisor_agent = Agent(
     gpt_model,
     instructions="""
     You are a helpful AI assistant used for voice conversations with a user.
     
     You have access to tools that you can call if you decide it is necessary for handling the user's request.
-    For user queries regarding world knowledge, call the knowledge agent tool.
-    To handle requests regarding house actions, like playing music, setting the temperature etc, call the home automation agent and then just confirm that the action has been performed.
     If there is not a need for a tool call, just converse with the user normally.
     
     Keep your response concise and in a casual, conversational tone.
@@ -178,6 +167,6 @@ async def main(prompt):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Accept one command line argument string.")
 
-    parser.add_argument("-p", type=str, help="Prompt")
+    parser.add_argument("prompt", type=str, help="Prompt")
     args = parser.parse_args()
-    asyncio.run(main(args.p))
+    asyncio.run(main(args.prompt))

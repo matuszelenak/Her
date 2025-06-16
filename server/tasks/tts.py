@@ -32,6 +32,8 @@ async def samples_sender_task(session: Session, outgoing_samples_queue: asyncio.
                     )
                 )
                 await asyncio.sleep(len(resampled) / 48000 * 2 / 3)
+    except asyncio.CancelledError:
+        logfire.info('TTS sender task cancelled.')
     except Exception as e:
         logfire.error(f'Exception in sample sender: {e}', _exc_info=True)
 

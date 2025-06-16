@@ -16,6 +16,11 @@ async def stt_task(session: Session, received_speech_queue: asyncio.Queue):
         async for transcribed_segment in stt_provider.continuous_transcription(received_speech_queue):
             await session.send_event(WsSendTranscriptionEvent(segment=transcribed_segment))
 
+            if session.llm_task and not session.llm_task.cancelled():
+                session.llm_task.cancel()
+            if session.tts_task and not session.tts_task.cancelled():
+                session.tts_task.cancel()
+
             if transcribed_segment.complete:
                 prompt_words.extend(transcribed_segment.words)
 
