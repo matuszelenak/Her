@@ -31,6 +31,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          context: ui
-          file: ui/Dockerfile
+          context: svelte-ui
+          file: svelte-ui/Dockerfile
           tags: ghcr.io/matuszelenak/her-ui:latest
