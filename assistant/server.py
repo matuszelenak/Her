@@ -10,9 +10,6 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
 
 from agents import gen
-from log_utils import get_logger
-
-logger = get_logger(__name__)
 
 logfire.configure(send_to_logfire="if-token-present")
 logfire.instrument_openai()
@@ -80,6 +77,7 @@ async def chat(request: CompletionRequest):
         completion_chunk.choices[0].finish_reason = 'stop'
 
         yield f"data: {completion_chunk.model_dump_json()}\n\n"
+
 
     return StreamingResponse(
         chunk_generator(),

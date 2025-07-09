@@ -7,11 +7,7 @@ from sqlalchemy import pool
 from alembic import context
 from db.models import Base
 
-POSTGRES_HOST = os.environ.get('POSTGRES_HOST')
-POSTGRES_PORT = os.environ.get('POSTGRES_PORT')
-POSTGRES_DB = os.environ.get('POSTGRES_DB')
-POSTGRES_USERNAME = os.environ.get('POSTGRES_USER')
-POSTGRES_PASSWORD = os.environ.get('POSTGRES_PASSWORD')
+from config import config as cfg
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -66,7 +62,7 @@ def run_migrations_online() -> None:
 
     """
     config_section = config.get_section(config.config_ini_section, {})
-    config_section['sqlalchemy.url'] = f"postgresql+psycopg2://{POSTGRES_USERNAME}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+    config_section['sqlalchemy.url'] = f"postgresql+asyncpg://{cfg.POSTGRES_USER}:{cfg.POSTGRES_PASSWORD}@{cfg.POSTGRES_HOST}:{cfg.POSTGRES_PORT}/{cfg.POSTGRES_DB}"
 
     connectable = engine_from_config(
         config_section,

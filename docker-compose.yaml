@@ -18,12 +18,12 @@ services:
     ports:
       - "5432:5432"
     env_file:
-      - .env
+      - server/.env
 
   server:
     container_name: her-server
     env_file:
-      - .env
+      - server/.env
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -39,6 +39,7 @@ services:
           target: /app
     volumes:
       - ./tts_output:/tts_output
+      - ./voices:/voices
 
   assistant:
     container_name: her-assistant
@@ -60,31 +61,12 @@ services:
   ui:
     container_name: her-ui
     build:
-      context: ui
-      dockerfile: dev.Dockerfile
-    depends_on:
-      - server
-    ports:
-      - "5000:5000"
-    develop:
-      watch:
-        - action: rebuild
-          path: ./ui/package.json
-        - action: sync
-          path: ./ui
-          target: /app
-          ignore:
-            - node_modules/
-
-  ui-svelte:
-    container_name: ai-girlfriend-ui-svelte
-    build:
       context: svelte-ui
       dockerfile: dev.Dockerfile
     depends_on:
       - server
     ports:
-      - "5001:5000"
+      - "5000:5000"
     develop:
       watch:
         - action: rebuild

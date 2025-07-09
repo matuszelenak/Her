@@ -7,9 +7,6 @@ import websockets
 
 from models.base import TranscriptionSegment
 from providers.base import BaseProvider
-from utils.log import get_logger
-
-logger = get_logger(__name__)
 
 
 class WhisperProvider(BaseProvider):

@@ -24,7 +24,6 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('started_at', sa.DateTime(), nullable=False),
     sa.Column('header', sa.String(), nullable=True),
-    sa.Column('config_db', sa.JSON(), nullable=False),
     sa.Column('messages', sa.JSON(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )

@@ -1,12 +1,11 @@
 import asyncio
 from asyncio import CancelledError
 
-from models.sent_events import WsSendTranscriptionEvent
-from providers import providers, WhisperProvider
-from utils.log import get_logger
-from models.session import Session
+import logfire
 
-logger = get_logger(__name__)
+from models.sent_events import WsSendTranscriptionEvent
+from models.session import Session
+from providers import providers, WhisperProvider
 
 
 async def stt_task(session: Session, received_speech_queue: asyncio.Queue):
@@ -17,17 +16,22 @@ async def stt_task(session: Session, received_speech_queue: asyncio.Queue):
         async for transcribed_segment in stt_provider.continuous_transcription(received_speech_queue):
             await session.send_event(WsSendTranscriptionEvent(segment=transcribed_segment))
 
+            if session.llm_task and not session.llm_task.cancelled():
+                session.llm_task.cancel()
+            if session.tts_task and not session.tts_task.cancelled():
+                session.tts_task.cancel()
+
             if transcribed_segment.complete:
                 prompt_words.extend(transcribed_segment.words)
 
             if transcribed_segment.final:
                 session.prompt = ' '.join(prompt_words)
-                logger.debug(f'Setting prompt to {session.prompt}')
+                logfire.info(f'Setting prompt to {session.prompt}')
 
                 prompt_words = []
 
     except CancelledError:
-        logger.debug('STT task cancelled')
+        logfire.info('STT task cancelled')
 
     except Exception as e:
-        logger.error('Exception in STT task', exc_info=True)
+        logfire.error(f'Exception in STT task: {e}', _exc_info=True)

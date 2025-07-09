@@ -1,11 +1,12 @@
-import os
 from typing import Dict, TypedDict
 
 from providers.base import BaseProvider, TextToSpeechProvider
+from providers.chatterbox import ChatterBoxAudioProvider
 from providers.kokoro import KokoroAudioProvider
 from providers.orpheus import OrpheusAudioProvider
 from providers.whisper import WhisperProvider
 from providers.xtts2 import XTTSProvider
+from config import config
 
 
 class ProviderDict(TypedDict):
@@ -16,17 +17,17 @@ class ProviderDict(TypedDict):
 def initialize_providers() -> ProviderDict:
     p = ProviderDict(stt={}, tts={})
 
-    kokoro_url = os.environ.get('KOKORO_API_URL')
-    if kokoro_url:
-        p['tts']['kokoro'] = KokoroAudioProvider(kokoro_url)
+    if config.KOKORO_API_URL:
+        p['tts']['kokoro'] = KokoroAudioProvider(config.KOKORO_API_URL)
 
-    orpheus_url = os.environ.get('ORPHEUS_API_URL')
-    if orpheus_url:
-        p['tts']['orpheus'] = OrpheusAudioProvider(orpheus_url)
+    if config.ORPHEUS_API_URL:
+        p['tts']['orpheus'] = OrpheusAudioProvider(config.ORPHEUS_API_URL)
 
-    whisper_url = os.environ.get('WHISPER_API_URL')
-    if whisper_url:
-        p['stt']['whisper'] = WhisperProvider(whisper_url)
+    if config.CHATTERBOX_API_URL:
+        p['tts']['chatterbox'] = ChatterBoxAudioProvider(config.CHATTERBOX_API_URL)
+
+    if config.WHISPER_API_URL:
+        p['stt']['whisper'] = WhisperProvider(config.WHISPER_API_URL)
 
     return p
 

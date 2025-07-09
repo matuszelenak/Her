@@ -5,8 +5,8 @@
     "language": "en"
   },
   "tts": {
-    "provider": "orpheus",
-    "voice": "leah"
+    "provider": "chatterbox",
+    "voice": "nichalia_schwartz"
   },
   "app": {
     "prevalidate_prompt": true,
