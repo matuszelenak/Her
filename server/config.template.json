@@ -10,6 +10,8 @@
   },
   "app": {
     "prevalidate_prompt": true,
-    "inactivity_timeout_ms": 30000
+    "inactivity_timeout_ms": 30000,
+    "voice_input_enabled": true,
+    "voice_output_enabled": true
   }
 }

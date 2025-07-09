@@ -6,6 +6,7 @@ services:
       - database
     env_file:
       - server/.env
+      - .env
     image: ghcr.io/matuszelenak/her-server:latest
     ports:
       - "8069:8000"
@@ -26,7 +27,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     env_file:
-      - server/.env
+      - .env
 
 volumes:
   postgres-data:

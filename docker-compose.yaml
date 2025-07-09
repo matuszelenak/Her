@@ -18,12 +18,13 @@ services:
     ports:
       - "5432:5432"
     env_file:
-      - server/.env
+      - .env
 
   server:
     container_name: her-server
     env_file:
       - server/.env
+      - .env
     build:
       context: ./server
       dockerfile: Dockerfile
