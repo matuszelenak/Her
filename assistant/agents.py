@@ -1,8 +1,15 @@
 import argparse
 import asyncio
-import os
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator, List, Union
 
+import logfire
+from dotenv import load_dotenv
+from pydantic_ai import Agent, RunContext
+from pydantic_ai.common_tools.tavily import TavilySearchTool
+from pydantic_ai.mcp import MCPServerStreamableHTTP
+from pydantic_ai.messages import TextPartDelta, PartDeltaEvent, ModelMessage, FunctionToolCallEvent, PartStartEvent, \
+    ToolCallPartDelta, FinalResultEvent, FunctionToolResultEvent, ModelResponsePart, ModelRequestPart, TextPart, \
+    ToolCallPart, ToolReturnPart
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai import Agent, RunContext, Tool
@@ -60,8 +67,7 @@ home_automation_agent = Agent(
 supervisor_agent = Agent(
     gpt_model,
     instructions="""
-    You are a helpful AI assistant used for voice conversations with a user named Matúš.
-    Matúš is a 30-year old man living in Bratislava, Slovakia. He is also the author of the voice assistant software of which you are the thinking part.
+    You are a helpful AI assistant used for voice conversations with a user.
     
     You have access to tools that you can call if you decide it is necessary for handling the user's request.
     For user queries regarding world knowledge, call the knowledge agent tool.
@@ -71,7 +77,8 @@ supervisor_agent = Agent(
     Keep your response concise and in a casual, conversational tone.
     Format your response so that it can be directly fed to a text-to-speech software: meaning there should be no markdown or other formatting, the numbers should be written out in word form (not as digits) and do not use emojis!
     /no_think
-    """
+    """,
+    mcp_servers=[MCPServerStreamableHTTP(url='http://192.168.1.87:8080/mcp/')]
 )
 
 
@@ -89,46 +96,82 @@ async def knowledge_agent_tool(ctx: RunContext[None], question: str) -> AsyncGen
     return result.data
 
 
-@supervisor_agent.tool_plain
-async def home_automation_agent_tool(request: str):
-    """
-    An agent for handling users request that trigger actions regarding the devices in his home.
-    Currently supported is setting the temperature and playing music
-
-    Args:
-        request: users request
-    """
-    logger.debug(f'Automation {request}')
-    result = await home_automation_agent.run(request)
-    return result.output
-
-
-@home_automation_agent.tool_plain
-async def set_target_temperature(temperature: float):
-    """
-    A tool to set the thermostat target temperature
-
-    Args:
-        temperature: Temperature in degrees Celsius
-    """
-    logger.debug(f'Temperature {temperature}')
-    return 'OK'
-
-
-async def gen(prompt: str, message_history: List[ModelMessage]) -> AsyncGenerator[str, None]:
-    async with supervisor_agent.iter(prompt, message_history=message_history) as run:
-        async for node in run:
-            if Agent.is_model_request_node(node):
-                async with node.stream(run.ctx) as request_stream:
-                    async for event in request_stream:
-                        if isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
-                            yield event.delta.content_delta
-
+async def gen(prompt: str, message_history: List[ModelMessage]) -> AsyncGenerator[Union[ModelRequestPart, ModelResponsePart], None]:
+    output_messages: list[str] = []
+    async with supervisor_agent.run_mcp_servers():
+        async with supervisor_agent.iter(prompt, message_history=message_history) as run:
+            async for node in run:
+                if Agent.is_model_request_node(node):
+                    # A model request node => We can stream tokens from the model's request
+                    output_messages.append(
+                        '=== ModelRequestNode: streaming partial request tokens ==='
+                    )
+                    async with node.stream(run.ctx) as request_stream:
+                        async for event in request_stream:
+                            if isinstance(event, PartStartEvent):
+                                output_messages.append(
+                                    f'[Request] Starting part {event.index}: {event.part!r}'
+                                )
+                            elif isinstance(event, PartDeltaEvent):
+                                if isinstance(event.delta, TextPartDelta):
+                                    # print( f'[Request] Part {event.index} text delta: {event.delta.content_delta!r}')
+                                    output_messages.append(
+                                        f'[Request] Part {event.index} text delta: {event.delta.content_delta!r}'
+                                    )
+                                    yield TextPart(
+                                        content=event.delta.content_delta
+                                    )
+                                elif isinstance(event.delta, ToolCallPartDelta):
+                                    # print(f'[Request] Part {event.index} args_delta={event.delta.args_delta}')
+                                    output_messages.append(
+                                        f'[Request] Part {event.index} args_delta={event.delta.args_delta}'
+                                    )
+                            elif isinstance(event, FinalResultEvent):
+                                # print(f'[Result] The model produced a final output (tool_name={event.tool_name})')
+                                output_messages.append(
+                                    f'[Result] The model produced a final output (tool_name={event.tool_name})'
+                                )
+                elif Agent.is_call_tools_node(node):
+                    # A handle-response node => The model returned some data, potentially calls a tool
+                    output_messages.append(
+                        '=== CallToolsNode: streaming partial response & tool usage ==='
+                    )
+                    async with node.stream(run.ctx) as handle_stream:
+                        async for event in handle_stream:
+                            if isinstance(event, FunctionToolCallEvent):
+                                # print(f'[Tools] The LLM calls tool={event.part.tool_name!r} with args={event.part.args} (tool_call_id={event.part.tool_call_id!r})')
+                                yield ToolCallPart(
+                                    tool_name=event.part.tool_name,
+                                    args=event.part.args,
+                                    tool_call_id=event.part.tool_call_id
+                                )
+                                output_messages.append(
+                                    f'[Tools] The LLM calls tool={event.part.tool_name!r} with args={event.part.args} (tool_call_id={event.part.tool_call_id!r})'
+                                )
+                            elif isinstance(event, FunctionToolResultEvent):
+                                # print(f'[Tools] Tool call {event.tool_call_id!r} returned => {event.result.content}')
+                                yield ToolReturnPart(
+                                    tool_name=event.result.tool_name,
+                                    content=event.result.content,
+                                    tool_call_id=event.tool_call_id,
+                                    timestamp=event.result.timestamp
+                                )
+                                output_messages.append(
+                                    f'[Tools] Tool call {event.tool_call_id!r} returned => {event.result.content}'
+                                )
+                elif Agent.is_end_node(node):
+                    assert run.result.output == node.data.output
+                    # Once an End node is reached, the agent run is complete
+                    # print( f'=== Final Agent Output: {run.result.output} ===')
+                    output_messages.append(
+                        f'=== Final Agent Output: {run.result.output} ==='
+                    )
 
 async def main(prompt):
-    async for token in gen(prompt, []):
-        print(token, end='', flush=True)
-    print()
+    with logfire.span('Standalone assistant test run'):
+        async for token in gen(prompt, []):
+            print(token)
+
 
 
 if __name__ == '__main__':

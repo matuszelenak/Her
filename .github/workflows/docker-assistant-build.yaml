@@ -33,4 +33,4 @@ jobs:
           push: true
           context: assistant
           file: assistant/Dockerfile
-          tags: ghcr.io/matuszelenak/ai-girlfriend-assistant:latest
+          tags: ghcr.io/matuszelenak/her-assistant:latest

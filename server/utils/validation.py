@@ -1,7 +1,4 @@
-import logging
 from datetime import datetime, timedelta
-
-logger = logging.getLogger(__name__)
 
 
 async def should_agent_respond(session):
@@ -14,7 +11,7 @@ async def should_agent_respond(session):
     #     model='qwen2.5:1.5b-instruct-q8_0',
     #     messages=[{
     #         'role': 'user',
-    #         'content': f'Output YES if the following text is addressed to a person called Lucy and NO if it is not. The text is: {session.prompt}'
+    #         'content': f'Output YES if the following text is addressed to and NO if it is not. The text is: {session.prompt}'
     #     }],
     #     temperature=0
     # )

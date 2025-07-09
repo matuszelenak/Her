@@ -1,6 +1,6 @@
 services:
   nginx:
-    container_name: ai-girlfriend-nginx
+    container_name: her-nginx
     image: nginx:latest
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
@@ -11,7 +11,7 @@ services:
       - ui
 
   database:
-    container_name: ai-girlfriend-database
+    container_name: her-database
     image: postgres:14.3
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -21,7 +21,7 @@ services:
       - .env
 
   server:
-    container_name: ai-girlfriend-server
+    container_name: her-server
     env_file:
       - .env
     build:
@@ -41,7 +41,7 @@ services:
       - ./tts_output:/tts_output
 
   assistant:
-    container_name: ai-girlfriend-assistant
+    container_name: her-assistant
     build:
       context: ./assistant
       dockerfile: Dockerfile
@@ -58,7 +58,7 @@ services:
           target: /app
 
   ui:
-    container_name: ai-girlfriend-ui
+    container_name: her-ui
     build:
       context: ui
       dockerfile: dev.Dockerfile

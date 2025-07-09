@@ -33,4 +33,4 @@ jobs:
           push: true
           context: ui
           file: ui/Dockerfile
-          tags: ghcr.io/matuszelenak/ai-girlfriend-ui:latest
+          tags: ghcr.io/matuszelenak/her-ui:latest

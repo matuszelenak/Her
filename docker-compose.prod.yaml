@@ -1,26 +1,26 @@
 services:
   server:
-    container_name: ai-girlfriend-server
+    container_name: her-server
     restart: unless-stopped
     depends_on:
       - database
     env_file:
-      - .env
-    image: ghcr.io/matuszelenak/ai-girlfriend-server:latest
+      - server/.env
+    image: ghcr.io/matuszelenak/her-server:latest
     ports:
       - "8069:8000"
 
   ui:
-    container_name: ai-girlfriend-ui
+    container_name: her-ui
     restart: unless-stopped
-    image: ghcr.io/matuszelenak/ai-girlfriend-ui:latest
+    image: ghcr.io/matuszelenak/her-ui:latest
     depends_on:
       - server
     ports:
       - "5069:80"
 
   database:
-    container_name: ai-girlfriend-database
+    container_name: her-database
     restart: unless-stopped
     image: postgres:14.3
     volumes:
