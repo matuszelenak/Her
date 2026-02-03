@@ -3,9 +3,9 @@ from asyncio import CancelledError
 
 import logfire
 
-from models.sent_events import WsSendTranscriptionEvent
-from models.session import Session
-from providers import providers, WhisperProvider
+from src.models.sent_events import WsSendTranscriptionEvent
+from src.models.session import Session
+from src.providers import providers, WhisperProvider
 
 
 async def stt_task(session: Session, received_speech_queue: asyncio.Queue):

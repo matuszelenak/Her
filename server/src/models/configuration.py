@@ -5,9 +5,9 @@ from typing import Literal, Union
 import aiofiles
 from pydantic import BaseModel
 
-from providers.chatterbox import ChatterBoxConfig
-from providers.kokoro import KokoroConfig
-from providers.orpheus import OrpheusConfig
+from src.providers.chatterbox import ChatterBoxConfig
+from src.providers.kokoro import KokoroConfig
+from src.providers.orpheus import OrpheusConfig
 
 
 class STTConfig(BaseModel):

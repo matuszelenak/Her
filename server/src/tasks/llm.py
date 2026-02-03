@@ -8,12 +8,12 @@ from openai import AsyncClient
 from openai.types.chat import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_chunk import Choice
 
-from config import config
-from models.base import Token, Message
-from models.sent_events import WsSendTokenEvent
-from models.session import Session
-from tasks.tts import tts_task
-from utils.sanitization import clean_text_for_tts
+from src.config import config
+from src.models.base import Token, Message
+from src.models.sent_events import WsSendTokenEvent
+from src.models.session import Session
+from src.tasks.tts import tts_task
+from src.utils.sanitization import clean_text_for_tts
 
 TokenTuple = Tuple[Literal['token'], Choice]
 SentenceTuple = Tuple[Literal['sentence'], str]
@@ -38,6 +38,8 @@ async def llm_query_task(session: Session, prompt: str):
         async for resp_type, content in generate_llm_response(session.chat.messages):
             if resp_type == 'token':
                 content: Choice
+
+                print(content)
 
                 complete_response += content.delta.content
 
@@ -82,7 +84,7 @@ async def llm_query_task(session: Session, prompt: str):
 async def generate_llm_response(messages: Iterable[ChatCompletionMessageParam]) -> AsyncGenerator[Union[TokenTuple, SentenceTuple], None]:
     sentence_buffer = ""
     async for part in await client.chat.completions.create(
-            model='anything',
+            model='QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ',
             messages=messages,
             stream=True
     ):

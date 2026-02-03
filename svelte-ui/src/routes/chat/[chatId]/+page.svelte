@@ -272,7 +272,7 @@
 
     $effect(() => {
         if ($query.isSuccess) {
-            messages = $query.data.messages
+            messages = $query?.data?.messages || []
         }
     })
 

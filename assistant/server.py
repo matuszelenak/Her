@@ -1,15 +1,19 @@
 import datetime
-from typing import List
+from typing import List, Union
 
 import logfire
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk, Choice as ChunkChoice, ChoiceDelta
 from pydantic import BaseModel
-from pydantic_ai.messages import ModelRequest, UserPromptPart, ModelResponse, TextPart
+from pydantic_ai.messages import ModelRequest, UserPromptPart, ModelResponse, TextPart, ModelRequestPart, \
+    ModelResponsePart
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
 
-from agents import gen
+from src.agents import gen
+
+load_dotenv()
 
 logfire.configure(send_to_logfire="if-token-present")
 logfire.instrument_openai()
@@ -40,12 +44,12 @@ class CompletionRequest(BaseModel):
     stream: bool = False
 
 
-def construct_completion_chunk(content):
+def construct_completion_chunk(part: Union[ModelRequestPart, ModelResponsePart]):
     return ChatCompletionChunk(
         id="chatcmpl-4247",
         choices=[ChunkChoice(
             delta=ChoiceDelta(
-                content=content,
+                content=part.content,
                 role='assistant'
             ),
             index=0
@@ -73,7 +77,7 @@ async def chat(request: CompletionRequest):
                 completion_chunk = construct_completion_chunk(token)
                 yield f"data: {completion_chunk.model_dump_json()}\n\n"
 
-        completion_chunk = construct_completion_chunk(' ')
+        completion_chunk = construct_completion_chunk(TextPart(content=''))
         completion_chunk.choices[0].finish_reason = 'stop'
 
         yield f"data: {completion_chunk.model_dump_json()}\n\n"

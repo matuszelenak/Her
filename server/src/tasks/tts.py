@@ -4,10 +4,10 @@ import base64
 import logfire
 import numpy as np
 
-from models.sent_events import WsSendSpeechSamplesEvent
-from models.session import Session
-from providers import providers
-from providers.base import TextToSpeechProvider
+from src.models.sent_events import WsSendSpeechSamplesEvent
+from src.models.session import Session
+from src.providers import providers
+from src.providers.base import TextToSpeechProvider
 
 
 async def samples_sender_task(session: Session, outgoing_samples_queue: asyncio.Queue):

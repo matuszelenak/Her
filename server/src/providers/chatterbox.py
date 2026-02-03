@@ -9,7 +9,7 @@ import numpy as np
 import scipy.io.wavfile as wav
 from pydantic import BaseModel
 
-from providers.base import TextToSpeechProvider
+from src.providers.base import TextToSpeechProvider
 
 
 class ChatterBoxConfig(BaseModel):

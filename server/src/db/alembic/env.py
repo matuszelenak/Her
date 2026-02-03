@@ -1,33 +1,34 @@
 import os
 from logging.config import fileConfig
 
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-from db.models import Base
+from src.db.models import Base
 
-from config import config as cfg
-
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
+
+load_dotenv()
+config.set_main_option(
+    'sqlalchemy.url',
+    'postgresql://{}:{}@{}:{}/{}'.format(
+        os.environ.get('POSTGRES_USER'),
+        os.environ.get('POSTGRES_PASSWORD'),
+        os.environ.get('POSTGRES_HOST'),
+        os.environ.get('POSTGRES_PORT'),
+        os.environ.get('POSTGRES_DB')
+    )
+)
+
 target_metadata = Base.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+
 
 
 def run_migrations_offline() -> None:
@@ -61,11 +62,9 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    config_section = config.get_section(config.config_ini_section, {})
-    config_section['sqlalchemy.url'] = f"postgresql+asyncpg://{cfg.POSTGRES_USER}:{cfg.POSTGRES_PASSWORD}@{cfg.POSTGRES_HOST}:{cfg.POSTGRES_PORT}/{cfg.POSTGRES_DB}"
 
     connectable = engine_from_config(
-        config_section,
+        config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

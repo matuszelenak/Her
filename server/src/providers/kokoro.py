@@ -4,7 +4,7 @@ import httpx
 import numpy as np
 from pydantic import BaseModel
 
-from providers.base import TextToSpeechProvider
+from src.providers.base import TextToSpeechProvider
 
 
 class KokoroConfig(BaseModel):

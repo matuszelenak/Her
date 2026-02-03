@@ -1,0 +1,25 @@
+[project]
+name = "server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiofiles>=25.1.0",
+    "alembic>=1.18.1",
+    "asyncpg>=0.31.0",
+    "beautifulsoup4>=4.14.3",
+    "demoji>=1.1.0",
+    "fastapi>=0.128.0",
+    "httpx>=0.28.1",
+    "logfire[fastapi]>=4.19.0",
+    "markdown>=3.10.1",
+    "openai>=2.15.0",
+    "psycopg2-binary>=2.9.11",
+    "pydantic-ai>=0.2.4",
+    "pydantic-settings>=2.12.0",
+    "scipy>=1.17.0",
+    "sqlalchemy[asyncio]>=2.0.46",
+    "uvicorn>=0.40.0",
+    "websockets>=16.0",
+]

@@ -4,7 +4,7 @@ import httpx
 import numpy as np
 from pydantic import BaseModel
 
-from providers.base import TextToSpeechProvider
+from src.providers.base import TextToSpeechProvider
 
 
 class OrpheusConfig(BaseModel):
@@ -36,7 +36,7 @@ class OrpheusAudioProvider(TextToSpeechProvider):
         async with httpx.AsyncClient() as client:
             async with client.stream(
                 'POST',
-                f'{self.base_url}/v1/audio/speech/stream',
+                f'{self.base_url}/v1/audio/speech',
                 json={
                     "model": "orpheus",
                     "input": text,

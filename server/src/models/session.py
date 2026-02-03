@@ -11,9 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 from starlette.websockets import WebSocket
 
-from db.models import Chat
-from models.configuration import SessionConfig
-from models.sent_events import WsSendEvent
+from src.db.models import Chat
+from src.models.configuration import SessionConfig
+from src.models.sent_events import WsSendEvent
 
 
 @dataclass

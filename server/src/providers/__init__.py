@@ -1,12 +1,12 @@
 from typing import Dict, TypedDict
 
-from providers.base import BaseProvider, TextToSpeechProvider
-from providers.chatterbox import ChatterBoxAudioProvider
-from providers.kokoro import KokoroAudioProvider
-from providers.orpheus import OrpheusAudioProvider
-from providers.whisper import WhisperProvider
-from providers.xtts2 import XTTSProvider
-from config import config
+from src.providers.base import BaseProvider, TextToSpeechProvider
+from src.providers.chatterbox import ChatterBoxAudioProvider
+from src.providers.kokoro import KokoroAudioProvider
+from src.providers.orpheus import OrpheusAudioProvider
+from src.providers.whisper import WhisperProvider
+from src.providers.xtts2 import XTTSProvider
+from src.config import config
 
 
 class ProviderDict(TypedDict):

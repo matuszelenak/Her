@@ -2,8 +2,8 @@ import asyncio
 
 import logfire
 
-from tasks.llm import llm_query_task
-from models.session import Session
+from src.tasks.llm import llm_query_task
+from src.models.session import Session
 
 
 

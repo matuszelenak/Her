@@ -1,31 +1,36 @@
 import asyncio
 import logging
+import typing
 from datetime import datetime
 from uuid import uuid4, UUID
 
 import logfire
 import pydantic
 import starlette
+from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
-from db.models import Chat
-from db.session import get_db
-from endpoints.audio import audio_router
-from endpoints.chat import chat_router
-from models.configuration import load_config
-from models.received_events import WsReceiveSamplesEvent, WsReceiveEvent, WsReceiveSpeechEndEvent, \
+from src.db.models import Chat
+from src.db.session import get_db
+from src.endpoints.audio import audio_router
+from src.endpoints.chat import chat_router
+from src.models.configuration import load_config
+from src.models.received_events import WsReceiveSamplesEvent, WsReceiveEvent, WsReceiveSpeechEndEvent, \
     WsReceiveTextPrompt, WsReceiveSpeechPromptEvent, WsReceiveAgentSpeechEnd, WsReceiveConfigChange, \
     WsReceiveFlowControl
-from models.sent_events import WsManualPromptEvent, WsSendConfigurationEvent
-from models.session import Session
-from providers import providers
-from tasks.coordination import trigger_agent_response
-from tasks.stt import stt_task
-from utils.validation import should_agent_respond
+from src.models.sent_events import WsManualPromptEvent, WsSendConfigurationEvent
+from src.models.session import Session
+from src.providers import providers
+from src.tasks.coordination import trigger_agent_response
+from src.tasks.stt import stt_task
+from src.utils.validation import should_agent_respond
+
+
+load_dotenv()
 
 
 app = FastAPI()
@@ -38,12 +43,29 @@ app.add_middleware(
 )
 
 logfire.configure(send_to_logfire="if-token-present")
-logfire.instrument_fastapi(app)
 
 app.include_router(chat_router)
 app.include_router(audio_router)
 
+class EndpointFilter(logging.Filter):
+    def __init__(self, path: str,*args: typing.Any, **kwargs: typing.Any):
+        super().__init__(*args, **kwargs)
+        self._path = path
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.getMessage().find(self._path) == -1
+
+
+uvicorn_logger = logging.getLogger("uvicorn.access")
+uvicorn_logger.addFilter(EndpointFilter(path="/health"))
+logfire.instrument_fastapi(app, excluded_urls=['health'])
+
 app.mount('/audio', StaticFiles(directory='/tts_output'), name='tts-output')
+
+
+@app.get('/health')
+async def health():
+    return {}
 
 
 @app.websocket("/ws/health")

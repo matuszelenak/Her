@@ -9,7 +9,7 @@ from starlette.websockets import WebSocket
 
 
 async def main():
-    with open('utils/please_streamed.wav', 'wb') as f:
+    with open('src/utils/please_streamed.wav', 'wb') as f:
 
         async with httpx.AsyncClient() as client:
             async with client.stream(

@@ -15,8 +15,5 @@ class Config(BaseSettings):
     ORPHEUS_API_URL: str | None = None
     CHATTERBOX_API_URL: str | None = None
 
-    class Config:
-        env_file = ".env"
-
 
 config = Config()

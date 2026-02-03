@@ -1,0 +1,56 @@
+services:
+  vllm:
+    container_name: vllm
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    volumes:
+      - /mnt/nvme/llm-models/:/root/.cache/huggingface/hub
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
+      - HF_HUB_ENABLE_HF_TRANSFER=true
+      - VLLM_SLEEP_WHEN_IDLE=1
+      - LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu
+    entrypoint: >
+      vllm serve 
+      ${OPENAI_MODEL}
+      --max-num-seqs 1 
+      --enable-prefix-caching 
+      --host 0.0.0.0 
+      --tensor-parallel-size 2 
+      --gpu-memory-utilization 0.7 
+      --max-model-len 24576 
+      --trust-remote-code
+      --enable-auto-tool-choice
+      --tool-call-parser qwen3_coder
+      --kv-cache-dtype fp8
+      --default-chat-template-kwargs '{"enable_thinking": false}'
+      --enable-expert-parallel
+    ports:
+      - "11434:8000"
+    shm_size: "16gb"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  chat-ui:
+    container_name: chat-ui
+    image: ghcr.io/huggingface/chat-ui-db:latest
+    volumes:
+      - /home/whiskas/llm/chatui:/data
+    environment:
+      - OPENAI_BASE_URL=http://10.69.1.69:11434/v1
+      - PUBLIC_ORIGIN=http://localhost:3000
+      - ALLOW_INSECURE_COOKIES=true
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

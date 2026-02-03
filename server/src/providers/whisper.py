@@ -5,8 +5,8 @@ from typing import AsyncGenerator
 import httpx
 import websockets
 
-from models.base import TranscriptionSegment
-from providers.base import BaseProvider
+from src.models.base import TranscriptionSegment
+from src.providers.base import BaseProvider
 
 
 class WhisperProvider(BaseProvider):

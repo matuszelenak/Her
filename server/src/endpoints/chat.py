@@ -8,8 +8,8 @@ from sqlalchemy import select, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 
-from db.models import Chat
-from db.session import get_db
+from src.db.models import Chat
+from src.db.session import get_db
 
 chat_router = APIRouter()
 

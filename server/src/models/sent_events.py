@@ -2,8 +2,8 @@ from typing import Literal, Union
 
 from pydantic import BaseModel
 
-from models.base import Token, TranscriptionSegment
-from models.configuration import SessionConfig
+from src.models.base import Token, TranscriptionSegment
+from src.models.configuration import SessionConfig
 
 
 class WsManualPromptEvent(BaseModel):

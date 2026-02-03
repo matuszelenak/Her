@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
-from providers import providers
-from providers.base import TextToSpeechProvider
+from src.providers import providers
+from src.providers.base import TextToSpeechProvider
 
 audio_router = APIRouter()
 

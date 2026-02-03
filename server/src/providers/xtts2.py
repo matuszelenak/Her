@@ -5,7 +5,7 @@ import httpx
 import numpy as np
 import scipy
 
-from providers.base import TextToSpeechProvider
+from src.providers.base import TextToSpeechProvider
 
 
 XTTS_OUTPUT_SAMPLING_RATE = 24000
