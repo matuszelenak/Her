@@ -30,11 +30,7 @@ export interface TokenEvent {
 
 export interface STTOutputEvent {
     type: WebsocketEventType.USER_TRANSCRIPTION
-    segment: {
-        words: string[],
-        complete: boolean
-        id: number
-    }
+    text: string
 }
 
 export interface STTOutputInvalidationEvent {

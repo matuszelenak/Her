@@ -1,0 +1,43 @@
+services:
+  llama:
+    container_name: her-llama
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    restart: unless-stopped
+    volumes:
+      - /mnt/nvme/llm-models/:/root/.cache/llama.cpp
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
+    command: >
+      -hf unsloth/Nemotron-3-Nano-30B-A3B-GGUF:UD-Q4_K_XL
+      --min_p 0.01 
+      --temp 0.8 
+      --top-p 0.95 
+      --ctx-size 100000 
+      --port 8001
+      --jinja 
+      --flash-attn on
+      --cache-type-k q8_0 
+      --cache-type-v q8_0
+    ports:
+      - "11434:8001"
+    shm_size: "16gb"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  chat-ui:
+    container_name: chat-ui
+    image: ghcr.io/huggingface/chat-ui-db:latest
+    volumes:
+      - /home/whiskas/llm/chatui:/data
+    environment:
+      - OPENAI_BASE_URL=http://10.69.1.69:11434/v1
+      - PUBLIC_ORIGIN=http://localhost:3000
+      - ALLOW_INSECURE_COOKIES=true
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

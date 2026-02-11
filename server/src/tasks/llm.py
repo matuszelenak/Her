@@ -83,23 +83,28 @@ async def llm_query_task(session: Session, prompt: str):
 
 async def generate_llm_response(messages: Iterable[ChatCompletionMessageParam]) -> AsyncGenerator[Union[TokenTuple, SentenceTuple], None]:
     sentence_buffer = ""
-    async for part in await client.chat.completions.create(
-            model='QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ',
-            messages=messages,
-            stream=True
-    ):
-        msg = part.choices[0].delta.content
+    try:
+        async for part in await client.chat.completions.create(
+                model=config.OPENAI_MODEL,
+                messages=messages,
+                stream=True
+        ):
+            msg = part.choices[0].delta.content
 
-        yield "token", part.choices[0]
+            yield "token", part.choices[0]
 
-        msg = re.sub(r'\n+', '\n', msg)
+            msg = re.sub(r'\n+', '\n', msg)
 
-        for char in msg:
-            sentence_buffer += char
-            if char in ('.', ':', '\n', '?', '!'):
-                yield 'sentence', sentence_buffer.strip() + " "
+            for char in msg:
+                sentence_buffer += char
+                if char in ('.', ':', '\n', '?', '!'):
+                    yield 'sentence', sentence_buffer.strip() + " "
 
-                sentence_buffer = ""
+                    sentence_buffer = ""
 
-    if sentence_buffer:
-        yield 'sentence', sentence_buffer
+        if sentence_buffer:
+            yield 'sentence', sentence_buffer
+    except asyncio.CancelledError:
+        logfire.info('Generate LLM response task cancelled')
+    except Exception as e:
+        logfire.error(f'Error in LLM response task: {e}', _exc_info=True)

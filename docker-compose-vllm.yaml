@@ -1,7 +1,7 @@
 services:
   vllm:
     container_name: vllm
-    image: vllm/vllm-openai:latest
+    image: vllm/vllm-openai@sha256:27050c06b61efedab60eda7729c6d4613f061222f55189002e3ca1773800caae
     restart: unless-stopped
     volumes:
       - /mnt/nvme/llm-models/:/root/.cache/huggingface/hub

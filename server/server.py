@@ -19,8 +19,8 @@ from src.db.session import get_db
 from src.endpoints.audio import audio_router
 from src.endpoints.chat import chat_router
 from src.models.configuration import load_config
-from src.models.received_events import WsReceiveSamplesEvent, WsReceiveEvent, WsReceiveSpeechEndEvent, \
-    WsReceiveTextPrompt, WsReceiveSpeechPromptEvent, WsReceiveAgentSpeechEnd, WsReceiveConfigChange, \
+from src.models.received_events import WsReceiveSamplesEvent, WsReceiveEvent, WsReceiveSpeechPauseEvent, \
+    WsReceiveTextPrompt, WsReceiveSpeechEndEvent, WsReceiveAgentSpeechEnd, WsReceiveConfigChange, \
     WsReceiveFlowControl
 from src.models.sent_events import WsManualPromptEvent, WsSendConfigurationEvent
 from src.models.session import Session
@@ -129,8 +129,8 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
                         session.stt_task = asyncio.create_task(stt_task(session, received_speech_queue))
                     await received_speech_queue.put(event.data)
 
-                elif isinstance(event, WsReceiveSpeechEndEvent):
-                    await received_speech_queue.put(None)
+                elif isinstance(event, WsReceiveSpeechPauseEvent):
+                    await received_speech_queue.put('')
 
                 elif isinstance(event, WsReceiveTextPrompt):
                     logging.debug('Received manual prompt')
@@ -144,17 +144,9 @@ async def chat_endpoint(chat_id: str, websocket: WebSocket, db: AsyncSession = D
 
                     trigger_agent_response(session)
 
-                elif isinstance(event, WsReceiveSpeechPromptEvent):
-                    if session.prompt:
-                        warrants_response = await should_agent_respond(session)
-
-                        if warrants_response:
-                            trigger_agent_response(session)
-                        else:
-                            session.prompt = None
-                            # await session.send_event({
-                            #     'type': 'user_speech_transcription_invalidation'
-                            # })
+                elif isinstance(event, WsReceiveSpeechEndEvent):
+                    print('Speech end received')
+                    await received_speech_queue.put(None)
 
                 elif isinstance(event, WsReceiveAgentSpeechEnd):
                     session.last_interaction = datetime.now()

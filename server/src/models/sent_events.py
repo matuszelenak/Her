@@ -17,7 +17,8 @@ class WsSendTokenEvent(BaseModel):
 
 
 class WsSendTranscriptionEvent(BaseModel):
-    segment: TranscriptionSegment
+    text: str
+    is_final: bool
     type: Literal['user_speech_transcription'] = 'user_speech_transcription'
 
 

@@ -13,3 +13,8 @@ docker-dev-run:
 docker-vllm-run:
 	export $(grep -v '^#' .env | xargs -d '\n')
 	docker compose -f docker-compose-vllm.yaml up
+
+.ONESHELL:
+docker-llama-run:
+	export $(grep -v '^#' .env | xargs -d '\n')
+	docker compose -f docker-compose-llama.yaml up llama

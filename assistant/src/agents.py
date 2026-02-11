@@ -4,17 +4,11 @@ from typing import AsyncGenerator, List, Union
 
 import logfire
 from dotenv import load_dotenv
-from pydantic_ai import Agent, RunContext
-from pydantic_ai.common_tools.tavily import TavilySearchTool
-
-from pydantic_ai.models.openai import OpenAIModel
-from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai import Agent, RunContext, Tool
-from pydantic_ai.common_tools.tavily import TavilySearchTool
+from pydantic_ai import Agent
 from pydantic_ai.messages import TextPartDelta, PartDeltaEvent, ThinkingPartDelta, ModelMessage, FunctionToolCallEvent, \
     PartStartEvent, \
     ToolCallPartDelta, FinalResultEvent, FunctionToolResultEvent, ToolCallPart, ToolReturnPart, TextPart, \
-    ModelRequestPart, ModelResponsePart
+    ModelRequestPart, ModelResponsePart, ThinkingPart
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
@@ -104,12 +98,17 @@ async def gen(prompt: str, message_history: List[ModelMessage]) -> AsyncGenerato
                                     output_messages.append(
                                         f'[Request] Part {event.index} text delta: {event.delta.content_delta!r}'
                                     )
+                                    print('Text', event.delta.content_delta)
                                     yield TextPart(
                                         content=event.delta.content_delta
                                     )
                                 elif isinstance(event.delta, ThinkingPartDelta):
+                                    print('Thinking', event.delta.content_delta)
                                     output_messages.append(
                                         f'[Request] Part {event.index} thinking delta: {event.delta.content_delta!r}'
+                                    )
+                                    yield ThinkingPart(
+                                        content=event.delta.content_delta,
                                     )
                                 elif isinstance(event.delta, ToolCallPartDelta):
                                     output_messages.append(

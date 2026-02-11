@@ -72,15 +72,19 @@ async def chat(request: CompletionRequest):
     prompt = request.messages[-1].content
 
     async def chunk_generator():
-        with logfire.span('User request {msg=} at {ts=}', msg=prompt, ts=datetime.datetime.now()):
-            async for token in gen(prompt, message_history):
-                completion_chunk = construct_completion_chunk(token)
-                yield f"data: {completion_chunk.model_dump_json()}\n\n"
+        try:
+            with logfire.span('User request {msg=} at {ts=}', msg=prompt, ts=datetime.datetime.now()):
+                async for part in gen(prompt, message_history):
+                    if isinstance(part, TextPart) and part.content is not None:
+                        completion_chunk = construct_completion_chunk(part)
+                        yield f"data: {completion_chunk.model_dump_json()}\n\n"
 
-        completion_chunk = construct_completion_chunk(TextPart(content=''))
-        completion_chunk.choices[0].finish_reason = 'stop'
+            completion_chunk = construct_completion_chunk(TextPart(content=''))
+            completion_chunk.choices[0].finish_reason = 'stop'
 
-        yield f"data: {completion_chunk.model_dump_json()}\n\n"
+            yield f"data: {completion_chunk.model_dump_json()}\n\n"
+        except Exception as e:
+            logfire.error(str(e), _exc_info=True)
 
 
     return StreamingResponse(

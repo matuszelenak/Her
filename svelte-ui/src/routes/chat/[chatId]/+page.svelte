@@ -6,7 +6,7 @@
     import type {PageData} from './$types'
     import {getChat} from "$lib/api";
     import {log} from "$lib/log";
-    import {type LiveTranscribedText, type Message, type WebSocketEvent, WebsocketEventType} from "$lib/types";
+    import {type Message, type WebSocketEvent, WebsocketEventType} from "$lib/types";
     import workletUrl from "$lib/audio-processor.ts?url";
     import {arrayBufferToBase64, base64ToArrayBuffer} from "$lib/encoding";
     import {MicVAD} from "$lib/vad/real-time-vad";
@@ -39,7 +39,7 @@
     let isConnected = $state(false)
     let messages: Message[] = $state([])
     let manualUserMessage = $state("")
-    let transcribedUserMessage: LiveTranscribedText = $state({stableWords: [], undeterminedWords: []})
+    let transcribedUserMessage: string = $state('')
     let agentMessage = $state("")
 
     function connectWebSocket() {
@@ -53,9 +53,9 @@
             const message = JSON.parse(event.data) as WebSocketEvent
 
             if (message.type == WebsocketEventType.TOKEN) {
-                if (transcribedUserMessage.stableWords.length > 0) {
-                    messages = [...messages, {role: 'user', content: transcribedUserMessage.stableWords.join(' ')}]
-                    transcribedUserMessage = {stableWords: [], undeterminedWords: []}
+                if (transcribedUserMessage.length > 0) {
+                    messages = [...messages, {role: 'user', content: transcribedUserMessage}]
+                    transcribedUserMessage = ''
                 }
 
                 if (message.token != null) {
@@ -73,17 +73,7 @@
                 addAudioDataToSAB(incomingSamples)
             }
             if (message.type == WebsocketEventType.USER_TRANSCRIPTION) {
-                if (message.segment.complete) {
-                    transcribedUserMessage = {
-                        stableWords: [...transcribedUserMessage.stableWords, ...message.segment.words],
-                        undeterminedWords: []
-                    }
-                } else {
-                    transcribedUserMessage = {
-                        stableWords: transcribedUserMessage.stableWords,
-                        undeterminedWords: message.segment.words
-                    }
-                }
+                transcribedUserMessage = message.text
             }
         }
 
@@ -220,16 +210,16 @@
                         })
                     },
                     onSpeechEnd: () => {
-                        sendJsonMessage({'type': 'speech_end'})
+                        sendJsonMessage({'type': 'speech_pause'})
                         if (notifySpeechEndTimeout != null) {
                             clearTimeout(notifySpeechEndTimeout)
                         }
                         notifySpeechEndTimeout = setTimeout(() => {
                             console.log('Confirm speech submission')
                             sendJsonMessage({
-                                'type': 'speech_prompt_end'
+                                'type': 'speech_end'
                             })
-                        }, 1000)
+                        }, 1500)
                     },
                     model: 'legacy',
                 })
@@ -314,11 +304,11 @@
             </div>
         {/if}
 
-        {#if transcribedUserMessage.stableWords.length > 0 || transcribedUserMessage.undeterminedWords.length > 0}
+        {#if transcribedUserMessage.length > 0}
             <div class="flex justify-end">
                 <div class="max-w-[70%] bg-blue-500 text-white p-3 rounded-lg shadow">
                     <p class="text-sm">
-                        {`${transcribedUserMessage.stableWords.join(' ')} ${transcribedUserMessage.undeterminedWords.join(' ')}`}
+                        {`${transcribedUserMessage}`}
                     </p>
                 </div>
             </div>

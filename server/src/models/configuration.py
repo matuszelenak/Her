@@ -11,7 +11,7 @@ from src.providers.orpheus import OrpheusConfig
 
 
 class STTConfig(BaseModel):
-    provider: Literal['whisper'] = 'whisper'
+    provider: Literal['whisper', 'nemotron']
     model: Literal['medium.en', 'small.en', 'large-v3']
     language: Literal['en', 'cs']
 

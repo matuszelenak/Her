@@ -1,12 +1,12 @@
 {
   "stt": {
-    "provider": "whisper",
+    "provider": "nemotron",
     "model": "medium.en",
     "language": "en"
   },
   "tts": {
-    "provider": "orpheus",
-    "voice": "tara"
+    "provider": "chatterbox",
+    "voice": "chloe"
   },
   "app": {
     "prevalidate_prompt": true,

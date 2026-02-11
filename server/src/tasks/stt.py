@@ -3,32 +3,47 @@ from asyncio import CancelledError
 
 import logfire
 
+from src.models.base import TranscriptionSegment
 from src.models.sent_events import WsSendTranscriptionEvent
 from src.models.session import Session
-from src.providers import providers, WhisperProvider
+from src.providers import providers, SpeechToTextProvider
+from src.tasks.coordination import trigger_agent_response
+from src.utils.validation import should_agent_respond
 
 
 async def stt_task(session: Session, received_speech_queue: asyncio.Queue):
     try:
-        stt_provider: WhisperProvider = providers['stt']['whisper']
+        stt_provider: SpeechToTextProvider = providers['stt'][session.config.stt.provider]
 
-        prompt_words = []
+        transcribed_segment: TranscriptionSegment
         async for transcribed_segment in stt_provider.continuous_transcription(received_speech_queue):
-            await session.send_event(WsSendTranscriptionEvent(segment=transcribed_segment))
+            if transcribed_segment.text == '':
+                continue
+
+            await session.send_event(WsSendTranscriptionEvent(
+                text=transcribed_segment.text,
+                is_final=transcribed_segment.is_final
+            ))
 
             if session.llm_task and not session.llm_task.cancelled():
                 session.llm_task.cancel()
             if session.tts_task and not session.tts_task.cancelled():
                 session.tts_task.cancel()
 
-            if transcribed_segment.complete:
-                prompt_words.extend(transcribed_segment.words)
+            if transcribed_segment.is_final:
+                logfire.info(f'Setting prompt to {transcribed_segment.text}')
+                session.prompt = transcribed_segment.text
 
-            if transcribed_segment.final:
-                session.prompt = ' '.join(prompt_words)
-                logfire.info(f'Setting prompt to {session.prompt}')
+                warrants_response = await should_agent_respond(session)
 
-                prompt_words = []
+                if warrants_response:
+                    trigger_agent_response(session)
+                else:
+                    session.prompt = None
+                    # await session.send_event({
+                    #     'type': 'user_speech_transcription_invalidation'
+                    # })
+
 
     except CancelledError:
         logfire.info('STT task cancelled')

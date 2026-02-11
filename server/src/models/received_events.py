@@ -8,12 +8,12 @@ class WsReceiveSamplesEvent(BaseModel):
     data: str
 
 
+class WsReceiveSpeechPauseEvent(BaseModel):
+    type: Literal['speech_pause']
+
+
 class WsReceiveSpeechEndEvent(BaseModel):
     type: Literal['speech_end']
-
-
-class WsReceiveSpeechPromptEvent(BaseModel):
-    type: Literal['speech_prompt_end']
 
 
 class WsReceiveTextPrompt(BaseModel):
@@ -39,8 +39,8 @@ class WsReceiveFlowControl(BaseModel):
 class WsReceiveEvent(BaseModel):
     event: Union[
         WsReceiveSamplesEvent,
+        WsReceiveSpeechPauseEvent,
         WsReceiveSpeechEndEvent,
-        WsReceiveSpeechPromptEvent,
         WsReceiveTextPrompt,
         WsReceiveAgentSpeechEnd,
         WsReceiveConfigChange,

@@ -1,4 +1,5 @@
-import io
+import base64
+import json
 import os
 from functools import lru_cache
 from typing import Literal
@@ -6,10 +7,10 @@ from typing import Literal
 import aiofiles
 import httpx
 import numpy as np
-import scipy.io.wavfile as wav
+from httpx_sse import aconnect_sse
 from pydantic import BaseModel
 
-from src.providers.base import TextToSpeechProvider
+from src.providers import TextToSpeechProvider
 
 
 class ChatterBoxConfig(BaseModel):
@@ -58,31 +59,33 @@ class ChatterBoxAudioProvider(TextToSpeechProvider):
             return bytearray(response.content)
 
     async def generate_audio_stream(self, text: str, voice: str):
-        voice_bytes = await self.get_voice_content(voice)
+        request_data = {
+            "input": text,
+            "stream_format": "sse",
+            "exaggeration": 0.8,
+            "streaming_strategy": "sentence",
+            "streaming_chunk_size": 150,
+            "response_format": "wav"
+        }
+
         async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f'{self.base_url}/v1/audio/speech/upload',
-                data=dict(
-                    input=text,
-                    exaggeration=0.6,
-                    speed=0.5,
-                    cfg_weight=0.5,
-                    temperature=0.7,
-                    response_format='wav'
-                ),
-                files={
-                    'voice_file': (f'{voice}.wav', voice_bytes, 'audio/wav')
-                },
-                timeout=10000
-            )
-            sample_rate, audio_data = wav.read(io.BytesIO(resp.content))
-            total_samples = audio_data.shape[0]
+            async with aconnect_sse(
+                client,
+                "POST",
+                f'{self.base_url}/v1/audio/speech',
+                json=request_data
+            ) as event_source:
+                async for sse in event_source.aiter_sse():
+                    json_obj = json.loads(sse.data)
+                    if json_obj.get('type') == 'speech.audio.delta':
 
-            chunk_size = 4000
-            for prefix_len in range(0, total_samples, chunk_size):
-                samples: np.ndarray = audio_data[prefix_len:prefix_len + chunk_size]
+                        all_samples = np.frombuffer(base64.b64decode(json_obj['audio']), dtype=np.int16)
 
-                yield samples  / 32768.0
+                        chunk_size = 4000
+                        for prefix_len in range(0, len(all_samples), chunk_size):
+                            samples: np.ndarray = all_samples[prefix_len:prefix_len + chunk_size]
+
+                            yield samples  / 32768.0
 
     @lru_cache
     async def get_voices(self):

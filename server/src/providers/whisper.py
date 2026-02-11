@@ -6,10 +6,10 @@ import httpx
 import websockets
 
 from src.models.base import TranscriptionSegment
-from src.providers.base import BaseProvider
+from src.providers.base import SpeechToTextProvider
 
 
-class WhisperProvider(BaseProvider):
+class WhisperProvider(SpeechToTextProvider):
     def __init__(self, base_url):
         self.base_url = base_url
 

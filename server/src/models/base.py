@@ -13,9 +13,5 @@ class Token(BaseModel):
 
 
 class TranscriptionSegment(BaseModel):
-    words: List[str]
-    complete: bool
-    final: Optional[bool] = False
-    id: Optional[int] = None
-    start: Optional[float] = None
-    samples: Optional[int] = None
+    text: str
+    is_final: bool = False
